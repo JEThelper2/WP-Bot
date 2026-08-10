@@ -1,5 +1,9 @@
 """Tests for the Meta Cloud API webhook receiver (handshake + logging)."""
 
+import hashlib
+import hmac
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,6 +12,12 @@ from track_a.main import create_app
 from track_a.store import count_messages, list_messages
 
 VERIFY_TOKEN = "test-verify-token"
+APP_SECRET = "test-app-secret"
+
+
+def sign_payload(secret: str, raw_body: bytes) -> str:
+    digest = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return f"sha256={digest}"
 
 
 class NoopProcessor:
@@ -30,6 +40,23 @@ def app(tmp_path):
 @pytest.fixture()
 def client(app):
     return TestClient(app)
+
+
+@pytest.fixture()
+def signed_app(tmp_path):
+    """App with the app secret configured, so signatures are enforced."""
+    settings = Settings(
+        verify_token=VERIFY_TOKEN,
+        track_b_url="http://track-b:8200",
+        db_path=tmp_path / "inbound.db",
+        app_secret=APP_SECRET,
+    )
+    return create_app(settings, processor=NoopProcessor())
+
+
+@pytest.fixture()
+def signed_client(signed_app):
+    return TestClient(signed_app)
 
 
 def db_path(app):
@@ -245,6 +272,80 @@ def test_delivery_receipt_statuses_are_ignored_but_answered_200(
 def test_unknown_object_gets_404(client: TestClient) -> None:
     resp = client.post("/webhook", json={"object": "something_else", "entry": []})
     assert resp.status_code == 404
+
+
+# ------------------------------------------------- signature verification
+
+
+def test_signed_delivery_accepted_and_logged(signed_client: TestClient, signed_app) -> None:
+    payload = sample_text_payload()
+    raw = json.dumps(payload).encode()
+    resp = signed_client.post(
+        "/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": sign_payload(APP_SECRET, raw),
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["received"] == 1
+    assert count_messages(db_path(signed_app)) == 1
+
+
+def test_missing_signature_rejected_before_any_processing(
+    signed_client: TestClient, signed_app
+) -> None:
+    resp = signed_client.post(
+        "/webhook",
+        content=json.dumps(sample_text_payload()).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 403
+    # Rejected before parse/log/process: nothing hit the store.
+    assert count_messages(db_path(signed_app)) == 0
+
+
+def test_forged_signature_rejected_before_any_processing(
+    signed_client: TestClient, signed_app
+) -> None:
+    payload = sample_text_payload()
+    raw = json.dumps(payload).encode()
+    forged = sign_payload("attacker-secret", raw)
+    resp = signed_client.post(
+        "/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": forged,
+        },
+    )
+    assert resp.status_code == 403
+    assert count_messages(db_path(signed_app)) == 0
+
+
+def test_signature_bound_to_exact_body(signed_client: TestClient, signed_app) -> None:
+    """A signature is only valid for the exact bytes it was computed over."""
+    payload = sample_text_payload()
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    # Same payload, different serialization -> different bytes -> rejected.
+    resp = signed_client.post(
+        "/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": sign_payload(APP_SECRET, json.dumps(payload).encode()),
+        },
+    )
+    assert resp.status_code == 403
+    assert count_messages(db_path(signed_app)) == 0
+
+
+def test_verification_is_off_when_no_secret_configured(client: TestClient, app) -> None:
+    """Dev default: no app secret -> deliveries accepted without a signature."""
+    resp = client.post("/webhook", json=sample_text_payload())
+    assert resp.status_code == 200
+    assert count_messages(db_path(app)) == 1
 
 
 def test_health(client: TestClient) -> None:

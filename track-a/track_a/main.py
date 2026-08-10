@@ -19,7 +19,10 @@ Current scope:
   outbound reply through the sender.
 
 Meta expects every accepted webhook delivery to be answered with HTTP 200;
-anything else makes Meta retry (or drop) the delivery.
+anything else makes Meta retry (or drop) the delivery. When
+`WHATSAPP_APP_SECRET` is configured, deliveries are verified against
+`X-Hub-Signature-256` (HMAC-SHA256 of the raw body) before anything is
+parsed or logged — forged payloads are rejected with 403.
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
 from .reply import ReplySender, WhatsAppReplySender
 from .routing import IntentRouter
+from .signature import verify_webhook_signature
 from .store import (
     count_escalation_requests,
     count_messages,
@@ -135,9 +139,28 @@ def create_app(
 
     @app.post("/webhook")
     async def webhook(request: Request) -> dict[str, Any]:
-        """Receive, verify, and log inbound WhatsApp messages."""
+        """Receive, verify, and log inbound WhatsApp messages.
+
+        When `WHATSAPP_APP_SECRET` is configured, every delivery must carry
+        a valid `X-Hub-Signature-256` (HMAC-SHA256 of the RAW body with the
+        app secret). Verification runs before anything is parsed or logged,
+        so a forged delivery can never reach the message log or the
+        conversation.
+        """
+        raw_body = await request.body()
+        if settings.app_secret:
+            signature = request.headers.get("x-hub-signature-256")
+            if not verify_webhook_signature(settings.app_secret, raw_body, signature):
+                logger.warning(
+                    "webhook delivery rejected: X-Hub-Signature-256 invalid "
+                    "(forged or misconfigured secret?)"
+                )
+                raise HTTPException(
+                    status_code=403, detail="Webhook signature verification failed"
+                )
+
         try:
-            payload: Any = await request.json()
+            payload: Any = json.loads(raw_body)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON body")
 

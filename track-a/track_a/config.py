@@ -2,8 +2,8 @@
 
 Values come from the environment so the same code runs in dev and
 production. Defaults are dev-friendly; production deployments should
-set WHATSAPP_VERIFY_TOKEN (and later WHATSAPP_APP_SECRET for webhook
-signature verification).
+set WHATSAPP_VERIFY_TOKEN and WHATSAPP_APP_SECRET (webhook signature
+verification).
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ class Settings:
     db_path: Path = _DEFAULT_DB_PATH
     api_token: str = ""  # WhatsApp system-user access token (Media + Messages API)
     phone_number_id: str = ""  # business phone number id (outbound messages)
+    app_secret: str = ""  # Meta app secret; verifies X-Hub-Signature-256 on deliveries
     api_version: str = "v21.0"
 
     @classmethod
@@ -39,5 +40,6 @@ class Settings:
             ),
             api_token=os.environ.get("WHATSAPP_API_TOKEN", ""),
             phone_number_id=os.environ.get("WHATSAPP_PHONE_NUMBER_ID", ""),
+            app_secret=os.environ.get("WHATSAPP_APP_SECRET", ""),
             api_version=os.environ.get("WHATSAPP_GRAPH_API_VERSION", "v21.0"),
         )

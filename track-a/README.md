@@ -101,6 +101,7 @@ milestone scope:
 | Variable | Default | Purpose |
 |---|---|---|
 | `WHATSAPP_VERIFY_TOKEN` | `wp-bot-dev-verify-token` | Token Meta must send in the verification handshake. |
+| `WHATSAPP_APP_SECRET` | *(empty)* | Meta app secret. When set, every webhook delivery must carry a valid `X-Hub-Signature-256` (HMAC-SHA256 of the raw body) or it is rejected with 403 **before** it is parsed or logged. Set it in production. |
 | `WHATSAPP_API_TOKEN` | *(empty)* | System-user access token for the WhatsApp Media + Messages API. |
 | `WHATSAPP_PHONE_NUMBER_ID` | *(empty)* | Business phone number id used for outbound messages. |
 | `WHATSAPP_GRAPH_API_VERSION` | `v21.0` | Graph API version for media + send calls. |
@@ -149,7 +150,7 @@ Then in the Meta Developer portal set the webhook callback URL to
 |---|---|
 | `GET /health` | Liveness check. |
 | `GET /webhook` | Meta verification handshake (echoes `hub.challenge`). |
-| `POST /webhook` | Receives a Meta delivery; logs each new message; always answers 200 (404 for unrecognized objects). |
+| `POST /webhook` | Receives a Meta delivery; logs each new message; always answers 200 (404 for unrecognized objects). With `WHATSAPP_APP_SECRET` set, deliveries are signature-verified first and forged ones get 403 without touching the log. |
 | `GET /messages` | Dev/debug: recent logged messages, newest first. |
 
 ## Message pipeline
