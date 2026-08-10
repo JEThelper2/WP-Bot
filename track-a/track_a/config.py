@@ -1,0 +1,37 @@
+"""Track A configuration.
+
+Values come from the environment so the same code runs in dev and
+production. Defaults are dev-friendly; production deployments should
+set WHATSAPP_VERIFY_TOKEN (and later WHATSAPP_APP_SECRET for webhook
+signature verification).
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+DEFAULT_VERIFY_TOKEN = "wp-bot-dev-verify-token"
+
+_DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "inbound.db"
+
+
+@dataclass(frozen=True)
+class Settings:
+    verify_token: str = DEFAULT_VERIFY_TOKEN
+    track_b_url: str = "http://127.0.0.1:8200"
+    db_path: Path = _DEFAULT_DB_PATH
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        return cls(
+            verify_token=os.environ.get("WHATSAPP_VERIFY_TOKEN", DEFAULT_VERIFY_TOKEN),
+            track_b_url=os.environ.get("TRACK_B_URL", "http://127.0.0.1:8200"),
+            db_path=Path(
+                os.environ.get(
+                    "WP_BOT_TRACK_A_DB",
+                    str(_DEFAULT_DB_PATH),
+                )
+            ),
+        )

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wpbot-track-a"
+version = "0.1.0"
+description = "WP-Bot Track A: WhatsApp Cloud API conversation service (inbound webhook receiver)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "wpbot-shared-contract>=1.0.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[tool.setuptools.packages.find]
+include = ["track_a*"]
