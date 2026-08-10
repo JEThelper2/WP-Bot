@@ -12,6 +12,25 @@ Two parts:
    intent can bypass. The sandbox used to test the client lives in
    `wp-sandbox/`.
 
+## Pending-confirmation store
+
+`track_b.pending` holds an intent that passed the B2 gate but is awaiting
+the owner's YES/NO — the only release valve into the write pipeline:
+
+- `stage_pending(intent)` → stores the full intent keyed by `owner_id`
+  with a generated pending `change_id` and a **15-minute TTL** (a pending
+  confirmation never sits around indefinitely).
+- `resolve_pending(owner_id, decision)` → `yes` returns the staged intent
+  for the write pipeline to execute (B1+B2); `no` discards it; nothing
+  staged returns a clear `nothing_pending` outcome; a YES after TTL
+  expiry returns `expired` ("window passed — resend"), so **a stale write
+  is never executed**. A meta key with a 60s grace window over the intent
+  TTL is what lets the store tell "expired" apart from "never staged".
+
+`RedisPendingStore` is the production implementation (TTL enforced by
+Redis itself); `InMemoryPendingStore` backs tests with an injectable
+clock. Set `WPBOT_REDIS_URL` (default `redis://localhost:6379/0`).
+
 ## Allowlist gate (B2) — the PRD guardrail in code
 
 No intent reaches the WordPress client without passing, in order:
