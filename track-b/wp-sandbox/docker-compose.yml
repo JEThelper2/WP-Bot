@@ -1,0 +1,63 @@
+# WordPress sandbox for Track B integration tests.
+#
+#   docker compose up -d --build
+#   docker compose logs -f setup   # shows the generated application password
+#
+# The setup service installs WordPress, creates a dedicated EDITOR user
+# with an application password (never admin credentials), and writes the
+# password to ./_output/app-password.txt for the tests.
+#
+# The sandbox listens on http://localhost:8090. Point the integration
+# tests at it:
+#   WPBOT_WP_TEST_URL=http://localhost:8090 \
+#   WPBOT_WP_TEST_USERNAME=editor \
+#   WPBOT_WP_TEST_APP_PASSWORD=<from _output/app-password.txt> \
+#   pytest track-b/tests/test_integration_wp.py
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wordpress:
+    image: wordpress:6-php8.2
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8090:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./mu-plugins:/var/www/html/wp-content/mu-plugins
+
+  setup:
+    image: wordpress:cli-php8.2
+    depends_on:
+      wordpress:
+        condition: service_started
+    environment:
+      WP_URL: http://localhost:8090
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./setup.sh:/setup.sh:ro
+      - ./_output:/shared
+    entrypoint: ["/bin/sh", "/setup.sh"]
+
+volumes:
+  db_data:
+  wordpress_data:
