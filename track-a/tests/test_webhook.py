@@ -10,6 +10,13 @@ from track_a.store import count_messages, list_messages
 VERIFY_TOKEN = "test-verify-token"
 
 
+class NoopProcessor:
+    """Webhook tests focus on receive+log; skip the pipeline here."""
+
+    async def process_row(self, row_id):
+        return None
+
+
 @pytest.fixture()
 def app(tmp_path):
     settings = Settings(
@@ -17,7 +24,7 @@ def app(tmp_path):
         track_b_url="http://track-b:8200",
         db_path=tmp_path / "inbound.db",
     )
-    return create_app(settings)
+    return create_app(settings, processor=NoopProcessor())
 
 
 @pytest.fixture()

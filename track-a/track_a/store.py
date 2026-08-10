@@ -10,8 +10,13 @@ Design notes:
   duplicate deliveries are skipped, not double-logged.
 - `content` holds the raw text body for text messages, or a JSON dump of
   the media metadata (id, mime_type, ...) for audio and other types.
-- `media_ref` is the media id Track A will later use to download the
-  voice note via Meta's Media API (transcription comes in a later step).
+- `media_ref` is the media id Track A later uses to download the voice
+  note via Meta's Media API.
+- `message_text` is the normalized, channel-agnostic text (raw body for
+  text messages, Whisper transcript for voice notes). Intent parsing
+  (next milestone) reads only this field — rows without one are skipped.
+- `processing_status` tracks pipeline state: new | text | transcribed |
+  low_confidence | failed | unsupported.
 """
 
 from __future__ import annotations
@@ -23,14 +28,16 @@ from pathlib import Path
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS inbound_messages (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    wam_id          TEXT UNIQUE NOT NULL,
-    owner_phone     TEXT NOT NULL,
-    message_type    TEXT NOT NULL,
-    content         TEXT,
-    media_ref       TEXT,
-    meta_timestamp  TEXT,
-    received_at     TEXT NOT NULL
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    wam_id             TEXT UNIQUE NOT NULL,
+    owner_phone        TEXT NOT NULL,
+    message_type       TEXT NOT NULL,
+    content            TEXT,
+    media_ref          TEXT,
+    meta_timestamp     TEXT,
+    received_at        TEXT NOT NULL,
+    message_text       TEXT,
+    processing_status  TEXT NOT NULL DEFAULT 'new'
 );
 """
 
@@ -41,11 +48,26 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns added after the original schema (dev-stage migration)."""
+    existing = {
+        row["name"] for row in conn.execute("PRAGMA table_info(inbound_messages)")
+    }
+    if "message_text" not in existing:
+        conn.execute("ALTER TABLE inbound_messages ADD COLUMN message_text TEXT")
+    if "processing_status" not in existing:
+        conn.execute(
+            "ALTER TABLE inbound_messages "
+            "ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'new'"
+        )
+
+
 def init_db(db_path: Path) -> None:
     """Create the table (idempotent). Also creates the parent directory."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with _connect(db_path) as conn:
         conn.execute(_SCHEMA)
+        _migrate(conn)
 
 
 def insert_message(
@@ -57,16 +79,16 @@ def insert_message(
     content: str | None,
     media_ref: str | None,
     meta_timestamp: str | None,
-) -> bool:
+) -> int | None:
     """Persist one inbound message.
 
-    Returns True if inserted, False if it was a duplicate delivery
+    Returns the new row id, or None if it was a duplicate delivery
     (same wam_id already logged).
     """
     received_at = datetime.now(timezone.utc).isoformat()
     with _connect(db_path) as conn:
         try:
-            conn.execute(
+            cur = conn.execute(
                 """
                 INSERT INTO inbound_messages
                     (wam_id, owner_phone, message_type, content,
@@ -83,9 +105,28 @@ def insert_message(
                     received_at,
                 ),
             )
-            return True
+            return int(cur.lastrowid)
         except sqlite3.IntegrityError:
-            return False
+            return None
+
+
+def get_message(db_path: Path, row_id: int) -> dict | None:
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM inbound_messages WHERE id = ?", (row_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_processing(
+    db_path: Path, row_id: int, *, status: str, message_text: str | None
+) -> None:
+    with _connect(db_path) as conn:
+        conn.execute(
+            "UPDATE inbound_messages SET processing_status = ?, message_text = ? "
+            "WHERE id = ?",
+            (status, message_text, row_id),
+        )
 
 
 def list_messages(db_path: Path, limit: int = 100) -> list[dict]:

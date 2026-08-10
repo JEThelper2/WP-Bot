@@ -1,14 +1,17 @@
 """WP-Bot Track A — WhatsApp Cloud API inbound webhook receiver.
 
-Current scope (per the current milestone):
+Current scope:
 - GET  /webhook  — Meta's verification handshake (hub.mode / hub.verify_token / hub.challenge).
 - POST /webhook  — accepts inbound WhatsApp messages (text and voice-note
   media), extracts the owner phone, message type, raw content / media
   reference, and timestamp, and persists each one to the message log.
-- Message content is NOT processed yet: no transcription, no LLM parsing,
-  no intents sent to Track B. That is the next milestone. The Track B
-  client (`track_a.trackb.TrackBClient`) is ready and contract-validated
-  so the next step can wire it in.
+- Runs each new message through the inbound pipeline: text becomes
+  `message_text` directly; voice notes are downloaded via Meta's Media
+  API and transcribed (Whisper), routing to a low-confidence fallback
+  reply when the transcript can't be trusted. See `track_a.pipeline`.
+- Intent parsing / sending intents to Track B is the next milestone; the
+  Track B client (`track_a.trackb.TrackBClient`) is ready and
+  contract-validated for it.
 
 Meta expects every accepted webhook delivery to be answered with HTTP 200;
 anything else makes Meta retry (or drop) the delivery.
@@ -24,7 +27,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from .config import Settings
+from .media import WhatsAppMediaClient
+from .pipeline import MessageProcessor
+from .reply import ReplySender
 from .store import count_messages, init_db, insert_message, list_messages
+from .transcribe import WhisperTranscriber
 
 logger = logging.getLogger("track_a.webhook")
 
@@ -36,9 +43,22 @@ _WABA_OBJECT = "whatsapp_business_account"
 _MEDIA_TYPES = {"audio", "image", "video", "sticker", "document"}
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    processor: MessageProcessor | None = None,
+) -> FastAPI:
     settings = settings or Settings.from_env()
     init_db(settings.db_path)
+    if processor is None:
+        processor = MessageProcessor(
+            db_path=settings.db_path,
+            media_client=WhatsAppMediaClient(
+                api_token=settings.api_token,
+                api_version=settings.api_version,
+            ),
+            transcriber=WhisperTranscriber(),
+            sender=ReplySender(),
+        )
 
     app = FastAPI(
         title="WP-Bot Track A (WhatsApp conversation service)",
@@ -50,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ),
     )
     app.state.settings = settings
+    app.state.processor = processor
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -101,12 +122,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 # `statuses` entries are delivery receipts — not messages,
                 # nothing to log, and we must still answer 200.
                 for msg in value.get("messages", []):
-                    if _log_message(settings.db_path, msg):
-                        received += 1
-                    else:
+                    row_id = _log_message(settings.db_path, msg)
+                    if row_id is None:
                         duplicates += 1
+                        continue
+                    received += 1
+                    # Run the inbound pipeline (text normalize / voice
+                    # transcription). Blocking transcription belongs on a
+                    # queue in production; fine inline at this stage.
+                    await app.state.processor.process_row(row_id)
 
-        logger.info("webhook delivery: %d new message(s), %d duplicate(s)", received, duplicates)
+        logger.info(
+            "webhook delivery: %d new message(s), %d duplicate(s)",
+            received,
+            duplicates,
+        )
         return {"status": "ok", "received": received, "duplicates": duplicates}
 
     @app.get("/messages")
@@ -120,11 +150,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def _log_message(db_path: Any, msg: dict[str, Any]) -> bool:
+def _log_message(db_path: Any, msg: dict[str, Any]) -> int | None:
     """Extract the fields we care about and persist one message.
 
-    Returns True when a new row was inserted, False for duplicate
-    deliveries (Meta redelivers on retries).
+    Returns the new row id, or None for duplicate deliveries (Meta
+    redelivers on retries).
     """
     message_type = str(msg.get("type", "unknown"))
     if message_type == "text":
