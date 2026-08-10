@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS inbound_messages (
     message_text       TEXT,
     processing_status  TEXT NOT NULL DEFAULT 'new'
 );
+
+-- A4: requests the owner accepted to escalate to a human developer.
+-- No matching/marketplace logic — just a queue a human can review.
+CREATE TABLE IF NOT EXISTS escalation_requests (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_phone      TEXT NOT NULL,
+    original_message TEXT,
+    created_at       TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'new'
+);
 """
 
 
@@ -66,7 +76,7 @@ def init_db(db_path: Path) -> None:
     """Create the table (idempotent). Also creates the parent directory."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with _connect(db_path) as conn:
-        conn.execute(_SCHEMA)
+        conn.executescript(_SCHEMA)
         _migrate(conn)
 
 
@@ -146,6 +156,51 @@ def list_messages(db_path: Path, limit: int = 100) -> list[dict]:
 def count_messages(db_path: Path) -> int:
     with _connect(db_path) as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM inbound_messages").fetchone()
+    return int(row["n"])
+
+
+def log_escalation_request(
+    db_path: Path, owner_phone: str, original_message: str | None
+) -> int:
+    """Record an escalation the owner accepted (PRD §10). Returns row id."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    with _connect(db_path) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO escalation_requests (owner_phone, original_message, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (owner_phone, original_message, created_at),
+        )
+        return int(cur.lastrowid)
+
+
+def list_escalation_requests(
+    db_path: Path, limit: int = 100, status: str | None = None
+) -> list[dict]:
+    """Escalation queue for manual review, newest first."""
+    with _connect(db_path) as conn:
+        if status:
+            rows = conn.execute(
+                """
+                SELECT * FROM escalation_requests
+                WHERE status = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (status, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM escalation_requests ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def count_escalation_requests(db_path: Path) -> int:
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT COUNT(*) AS n FROM escalation_requests").fetchone()
     return int(row["n"])
 
 

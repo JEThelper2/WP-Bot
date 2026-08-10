@@ -32,8 +32,26 @@ milestone scope:
   LLM output is treated as low confidence. `image` is implemented but is
   v1.5 scope, not required for the v1 MVP.
 
-**Not built yet (next milestones):** routing parsed intents to Track B,
-real replies, clarifying-question flow (A4).
+- **Routing (A4)** — `track_a.routing.IntentRouter` routes every parsed
+  intent to exactly one branch:
+  - `confirm` — confidence ≥ `CONFIDENCE_THRESHOLD` (0.75, a named,
+    tunable constant) and all fields required for that content_type/action
+    are present (mirrors the contract: job/announcement need title+
+    description/body on `create`; business_info is always partial; image
+    needs slot + media unless delete). A5 takes over from here.
+  - `clarify` — below threshold or missing fields. One *targeted* question
+    ("What's the job title?", not "can you clarify"). The owner's reply
+    re-enters parsing with the prior exchange as LLM context
+    (`track_a.session.SessionStore`, in-memory per owner; swap for Redis in
+    a multi-worker deployment). Loop caps at `CLARIFICATION_MAX_TURNS` (3).
+  - `escalate` — the unsupported sentinel triggers the fixed escalation
+    message; a "yes" logs an escalation request (owner, original message)
+    to the `escalation_requests` table (PRD §10), reviewable via
+    `GET /escalations`. No matching logic — a human picks these up.
+
+**Not built yet (next milestone):** wiring the webhook through this whole
+pipeline (transcribe -> parse -> route -> submit to Track B), real replies
+(A5).
 
 ## Configuration (env vars)
 

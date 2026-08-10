@@ -30,7 +30,14 @@ from .config import Settings
 from .media import WhatsAppMediaClient
 from .pipeline import MessageProcessor
 from .reply import ReplySender
-from .store import count_messages, init_db, insert_message, list_messages
+from .store import (
+    count_escalation_requests,
+    count_messages,
+    init_db,
+    insert_message,
+    list_escalation_requests,
+    list_messages,
+)
 from .transcribe import WhisperTranscriber
 
 logger = logging.getLogger("track_a.webhook")
@@ -145,6 +152,15 @@ def create_app(
         return {
             "count": count_messages(settings.db_path),
             "messages": list_messages(settings.db_path),
+        }
+
+    @app.get("/escalations")
+    async def escalations() -> dict[str, Any]:
+        """Escalation queue (PRD §10): requests owners accepted to hand to a
+        human developer. No matching logic — a human reviews these."""
+        return {
+            "count": count_escalation_requests(settings.db_path),
+            "escalations": list_escalation_requests(settings.db_path),
         }
 
     return app

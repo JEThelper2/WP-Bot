@@ -135,15 +135,30 @@ class IntentParser:
     def __init__(self, llm: LLMClient | None = None) -> None:
         self.llm = llm or OpenAILLMClient()
 
-    async def parse(self, message_text: str, owner_id: str) -> IntentParseResult:
-        """message_text + owner_id in; validated intent (or sentinel) out."""
+    async def parse(
+        self,
+        message_text: str,
+        owner_id: str,
+        *,
+        context: str | None = None,
+    ) -> IntentParseResult:
+        """message_text + owner_id in; validated intent (or sentinel) out.
+
+        `context` carries the prior exchange from a clarification loop (A4):
+        the LLM is asked to produce the intent for the full request, using
+        the latest message to fill whatever gap we asked about.
+        """
         message_text = (message_text or "").strip()
         if not message_text:
             return IntentParseResult(status="low_confidence")
 
+        user_prompt = message_text
+        if context:
+            user_prompt = f"{context}\n\nLatest message from the owner: {message_text}"
+
         try:
             raw = await self.llm.complete_json(
-                system=SYSTEM_PROMPT, user=message_text
+                system=SYSTEM_PROMPT, user=user_prompt
             )
         except Exception as exc:
             logger.warning("LLM call failed; treating as low confidence: %s", exc)
