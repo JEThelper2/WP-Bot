@@ -29,6 +29,7 @@ from typing import Any
 
 from shared_contract import CONTRACT_VERSION, ContractValidationError, validate_intent, validate_result
 
+from .changelog import ChangeLog, ChangeRow
 from .secrets import redact
 from .wordpress import WordPressClient, WordPressError
 
@@ -177,12 +178,18 @@ async def apply_intent(
     intent: dict[str, Any],
     config: SiteConfig,
     client: WordPressClient,
+    changelog: ChangeLog | None = None,
 ) -> dict[str, Any]:
     """Validate an intent against the site's allowlist and apply it.
 
     Returns a contract-valid result object. A gate violation or a client
     error becomes `status: "failed"` with a clear error_message — no
     exception escapes, and no WordPress write happens before validation.
+
+    PRD §11: when a `changelog` is provided, every successful write is
+    logged in the same flow — a write that cannot be logged is treated as
+    a failure (undo depends entirely on this log), and the result's
+    change_id is the log row's change_id.
     """
     try:
         validate_intent_for_site(intent, config)
@@ -190,6 +197,7 @@ async def apply_intent(
         logger.info("intent rejected by gate: %s", exc)
         return _failed_result(str(exc))
 
+    change_id = f"ch-{uuid.uuid4().hex[:12]}"
     try:
         record = await _dispatch(intent, client)
     except (WordPressError, IntentNotAllowedError) as exc:
@@ -198,10 +206,34 @@ async def apply_intent(
         )
         return _failed_result(str(exc))
 
+    if changelog is not None:
+        try:
+            await changelog.record_change(
+                ChangeRow(
+                    change_id=change_id,
+                    owner_id=intent["owner_id"],
+                    content_type=intent["content_type"],
+                    action=intent["action"],
+                    before=record.before,
+                    after=record.after,
+                    live_url=record.live_url,
+                )
+            )
+        except Exception as exc:
+            logger.error(
+                "change %s was applied but could not be logged: %s",
+                change_id,
+                exc,
+            )
+            return _failed_result(
+                "the change was applied but could not be logged — treat as "
+                "failed; undo is unavailable for it"
+            )
+
     result = {
         "contract_version": CONTRACT_VERSION,
         "status": "success",
-        "change_id": f"ch-{uuid.uuid4().hex[:12]}",
+        "change_id": change_id,
         "before": record.before,
         "after": record.after,
         "live_url": record.live_url,

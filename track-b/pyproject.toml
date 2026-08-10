@@ -22,6 +22,9 @@ dev = [
     "pytest>=8",
     "fakeredis>=2.20",
 ]
+postgres = [
+    "asyncpg>=0.29",  # change log (PRD §11); imported lazily, so optional
+]
 
 [tool.setuptools.packages.find]
 include = ["track_b*"]

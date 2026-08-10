@@ -1,0 +1,29 @@
+# Postgres sandbox for the Track B change-log integration tests.
+#
+#   docker compose up -d
+#
+# then run the gated suite:
+#
+#   WPBOT_PG_TEST_URL=postgres://wpbot:wpbot@localhost:5433/wpbot \
+#   pytest track-b/tests/test_changelog_pg.py -v
+#
+# Port 5433 avoids clashing with a local Postgres on 5432.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: wpbot
+      POSTGRES_PASSWORD: wpbot
+      POSTGRES_DB: wpbot
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wpbot -d wpbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:

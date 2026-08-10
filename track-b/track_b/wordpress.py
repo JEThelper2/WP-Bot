@@ -257,7 +257,10 @@ class WordPressClient:
         payload: dict[str, Any] = {}
         if "title" in fields:
             payload["title"] = str(fields["title"])
-        if content_type == "job" and fields.get("description") is not None:
+        if "content" in fields and fields.get("content") is not None:
+            # Undo restores use the raw logged content directly.
+            payload["content"] = str(fields["content"])
+        elif content_type == "job" and fields.get("description") is not None:
             payload["content"] = str(fields["description"])
         elif content_type == "announcement" and fields.get("body") is not None:
             payload["content"] = str(fields["body"])
@@ -266,6 +269,8 @@ class WordPressClient:
             body = fields.get("description") or fields.get("body")
             if body is not None:
                 payload["content"] = str(body)
+        if "status" in fields and fields.get("status") is not None:
+            payload["status"] = str(fields["status"])
 
         # Structured details for job extras and announcement expiry.
         details: list[str] = []
