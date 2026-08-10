@@ -9,12 +9,14 @@ Current scope:
   `message_text` directly; voice notes are downloaded via Meta's Media
   API and transcribed (Whisper), routing to a low-confidence fallback
   reply when the transcript can't be trusted. See `track_a.pipeline`.
-- A3/A4/A5 build the rest of the conversation: intent parsing, the
-  confirm/clarify/escalate branches, and the full outbound flow
-  (confirmation -> YES/NO -> Track B -> completion/error reply). The
-  router (`track_a.routing.IntentRouter`, attached at `app.state.router`)
-  is ready to be driven from the webhook once it is wired end-to-end; for
-  now the webhook only runs the transcribe/normalize pipeline.
+- A3/A4/A5 + the Integration Phase build the rest of the conversation:
+  intent parsing, the confirm/clarify/escalate branches, the full outbound
+  flow (confirmation -> YES/NO -> real Track B -> completion/error reply),
+  and the UNDO command. The webhook now drives the whole thing: after a
+  message is logged and normalized, its `message_text` is fed to the
+  router (`app.state.router`, `track_a.routing.IntentRouter`), which
+  stages confirmations at Track B (B3), relays YES/NO, and sends every
+  outbound reply through the sender.
 
 Meta expects every accepted webhook delivery to be answered with HTTP 200;
 anything else makes Meta retry (or drop) the delivery.
@@ -37,6 +39,7 @@ from .routing import IntentRouter
 from .store import (
     count_escalation_requests,
     count_messages,
+    get_message,
     init_db,
     insert_message,
     list_escalation_requests,
@@ -59,6 +62,7 @@ _MEDIA_TYPES = {"audio", "image", "video", "sticker", "document"}
 def create_app(
     settings: Settings | None = None,
     processor: MessageProcessor | None = None,
+    router: IntentRouter | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     init_db(settings.db_path)
@@ -78,13 +82,14 @@ def create_app(
             sender=sender,
         )
 
-    router = IntentRouter(
-        sender=sender,
-        trackb=TrackBClient(base_url=settings.track_b_url),
-        log_escalation=lambda owner, msg: log_escalation_request(
-            settings.db_path, owner, msg
-        ),
-    )
+    if router is None:
+        router = IntentRouter(
+            sender=sender,
+            trackb=TrackBClient(base_url=settings.track_b_url),
+            log_escalation=lambda owner, msg: log_escalation_request(
+                settings.db_path, owner, msg
+            ),
+        )
 
     app = FastAPI(
         title="WP-Bot Track A (WhatsApp conversation service)",
@@ -158,6 +163,10 @@ def create_app(
                     # transcription). Blocking transcription belongs on a
                     # queue in production; fine inline at this stage.
                     await app.state.processor.process_row(row_id)
+                    # Then the conversation: drive the intent router from the
+                    # normalized message_text (text messages and successful
+                    # voice transcripts).
+                    await _route_message(app, settings.db_path, row_id)
 
         logger.info(
             "webhook delivery: %d new message(s), %d duplicate(s)",
@@ -184,6 +193,24 @@ def create_app(
         }
 
     return app
+
+
+async def _route_message(app: FastAPI, db_path: Any, row_id: int) -> None:
+    """Feed one processed inbound message to the conversation router.
+
+    Rows without `message_text` (unsupported types, low-confidence voice
+    notes) stop at the pipeline and never reach the router. A router
+    failure must never break the HTTP 200 Meta needs (otherwise Meta
+    retries the delivery) — log and move on.
+    """
+    row = get_message(db_path, row_id)
+    message_text = (row or {}).get("message_text")
+    if not message_text:
+        return
+    try:
+        await app.state.router.handle_message(row["owner_phone"], message_text)
+    except Exception:
+        logger.exception("router failed for message row %s", row_id)
 
 
 def _log_message(db_path: Any, msg: dict[str, Any]) -> int | None:

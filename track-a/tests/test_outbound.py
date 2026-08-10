@@ -1,10 +1,12 @@
 """A5 outbound flow: confirmation -> YES/NO -> Track B result -> final reply.
 
-The router drives the exchange: a confirmation-ready intent is composed
-and sent, a YES submits it to Track B and replies per the result object,
-a NO cancels with no write call ever made. The sender is a fake capturing
-exact outbound text; Track B is scripted per status, plus one test runs
-the whole flow against the real Track B stub.
+The router drives the exchange (Integration Phase flow): a
+confirmation-ready intent is STAGED at Track B first, the confirmation is
+composed and sent, a YES resolves it (`decision=yes`) and replies per the
+result object, a NO relays the discard (`decision=no`) — a WordPress write
+is never made on NO. The sender is a fake capturing exact outbound text;
+Track B is scripted per status. The full webhook-driven end-to-end flows
+live in tests/test_integration_phase.py.
 """
 
 import asyncio
@@ -75,13 +77,22 @@ class FakeSender:
 
 
 class FakeTrackB:
-    def __init__(self, *results):
-        self.results = list(results)
-        self.calls: list[dict] = []
+    """Realistic Track B double: stages, then resolves per scripted results."""
 
-    async def submit_intent(self, intent: dict) -> dict:
-        self.calls.append(intent)
-        return self.results.pop(0)
+    def __init__(self, *resolve_results):
+        self.resolve_results = list(resolve_results)
+        self.calls: list[tuple[dict, str | None]] = []
+
+    async def submit_intent(self, intent: dict, *, decision: str | None = None) -> dict:
+        self.calls.append((intent, decision))
+        if decision is None:
+            return result("needs_confirmation", change_id="pc-1")
+        if decision == "no":
+            return result("success")  # discarded; nothing written
+        return self.resolve_results.pop(0)
+
+    async def undo(self, owner_id: str) -> dict:
+        raise AssertionError("undo is exercised by the integration suite")
 
 
 def build_router(parser, trackb, sender):
@@ -120,8 +131,8 @@ def test_yes_success_sends_completion_with_live_url():
 
     outcome = handle(router, "yes")
     assert outcome.reason == "publish_success"
-    # Track B was called with the exact intent, once.
-    assert trackb.calls == [intent]
+    # Staged first, then resolved with decision=yes — same intent both times.
+    assert trackb.calls == [(intent, None), (intent, "yes")]
     # Exact completion message out.
     assert sender.last_text == (
         "Done! Here's the live change: https://example.com/owners/15551234567. "
@@ -134,7 +145,8 @@ def test_yes_failed_sends_error_with_message_and_keeps_intent_for_retry():
     intent = make_intent()
     sender = FakeSender()
     trackb = FakeTrackB(
-        result("failed", error_message="no such content on the site")
+        result("failed", error_message="no such content on the site"),
+        result("success", live_url="https://example.com/x"),
     )
     router = start_confirmation(
         ScriptedParser(IntentParseResult(status="intent", intent=intent, confidence=0.95)),
@@ -150,11 +162,11 @@ def test_yes_failed_sends_error_with_message_and_keeps_intent_for_retry():
     assert "Nothing was published" in sender.last_text
     # Pending intent kept: "Want to try again?" -> a later YES retries.
     assert router.sessions.get(OWNER).pending_intent == intent
-    trackb.results.append(result("success", live_url="https://example.com/x"))
     outcome = handle(router, "yes")
     assert outcome.reason == "publish_success"
     assert sender.last_text == compose_completion("https://example.com/x")
     assert router.sessions.get(OWNER) is None
+    assert trackb.calls == [(intent, None), (intent, "yes"), (intent, "yes")]
 
 
 def test_cancel_after_failed_clears_pending_without_retry():
@@ -173,8 +185,8 @@ def test_cancel_after_failed_clears_pending_without_retry():
     outcome = handle(router, "no")
     assert outcome.reason == "cancelled"
     assert sender.last_text == CANCEL_REPLY_TEXT
-    # Only the one (failed) submit happened; the NO made no write call.
-    assert len(trackb.calls) == 1
+    # Stage + failed YES + discard-NO relayed; the NO never publishes.
+    assert trackb.calls == [(intent, None), (intent, "yes"), (intent, "no")]
     assert router.sessions.get(OWNER) is None
 
 
@@ -223,33 +235,61 @@ def test_yes_unexpected_status_is_error_never_fake_success():
     assert "Done!" not in sender.last_text
 
 
-def test_trackb_contract_violation_sends_generic_error():
+def test_stage_contract_violation_sends_generic_error():
+    """A Track B that breaks the contract at STAGE time: no confirmation
+    is ever sent — the owner gets a generic error instead."""
     intent = make_intent()
     sender = FakeSender()
 
     class BrokenTrackB:
-        async def submit_intent(self, intent):
+        async def submit_intent(self, intent, *, decision=None):
             raise TrackBError("result fails the contract")
+
+    router = build_router(
+        ScriptedParser(IntentParseResult(status="intent", intent=intent, confidence=0.95)),
+        BrokenTrackB(),
+        sender,
+    )
+    outcome = handle(router, "post the job")
+    assert outcome.reason == "stage_failed"
+    assert sender.last_text == GENERIC_ERROR_REPLY_TEXT
+    assert "Done!" not in sender.last_text
+    # Nothing held for confirmation.
+    assert router.sessions.get(OWNER) is None
+
+
+def test_trackb_contract_violation_on_yes_sends_generic_error():
+    """A Track B that breaks the contract at RESOLVE time: the pending
+    intent is kept so the owner can retry after a generic error."""
+    intent = make_intent()
+    sender = FakeSender()
+
+    class BrokenOnResolve:
+        async def submit_intent(self, intent, *, decision=None):
+            if decision is not None:
+                raise TrackBError("result fails the contract")
+            return result("needs_confirmation", change_id="pc-1")
 
     router = start_confirmation(
         ScriptedParser(IntentParseResult(status="intent", intent=intent, confidence=0.95)),
         sender,
-        BrokenTrackB(),
+        BrokenOnResolve(),
         intent,
     )
     outcome = handle(router, "yes")
     assert outcome.reason == "submit_error"
     assert sender.last_text == GENERIC_ERROR_REPLY_TEXT
     assert "Done!" not in sender.last_text
+    assert router.sessions.get(OWNER).pending_intent == intent
 
 
 # ------------------------------------------------------------------- NO
 
 
-def test_no_cancels_without_any_write_call():
+def test_no_cancels_and_relays_discard_never_publishes():
     intent = make_intent()
     sender = FakeSender()
-    trackb = FakeTrackB()  # would fail loudly if called
+    trackb = FakeTrackB()
     router = start_confirmation(
         ScriptedParser(IntentParseResult(status="intent", intent=intent, confidence=0.95)),
         sender,
@@ -260,7 +300,8 @@ def test_no_cancels_without_any_write_call():
     outcome = handle(router, "no")
     assert outcome.reason == "cancelled"
     assert sender.last_text == CANCEL_REPLY_TEXT
-    assert trackb.calls == []  # no write call was ever made
+    # Staged, then the NO was relayed as a discard — never a publish.
+    assert trackb.calls == [(intent, None), (intent, "no")]
     assert router.sessions.get(OWNER) is None  # pending intent discarded
 
 
@@ -280,17 +321,59 @@ def test_ambiguous_reply_resends_confirmation():
     assert router.sessions.get(OWNER).pending_intent == intent
 
 
-# ------------------------------------------------- end-to-end vs real stub
+# ------------------------------------------------- end-to-end vs real API
 
 
-def test_end_to_end_against_real_track_b_stub():
-    """Webhook-in -> confirmation -> YES -> real stub -> completion out."""
+def test_end_to_end_confirmation_flow_against_real_track_b_api(tmp_path):
+    """Confirmation -> YES -> real Track B API (fake WordPress) -> completion.
+
+    The webhook-driven version of this flow (and the undo / clarification /
+    escalation flows) lives in tests/test_integration_phase.py; this runs
+    the same round-trip at the router level.
+    """
     intent = make_intent()
     sender = FakeSender()
-    from track_b.stub import create_stub_app
 
-    transport = httpx.ASGITransport(app=create_stub_app())
-    http = httpx.AsyncClient(transport=transport, base_url="http://track-b")
+    import httpx as _httpx
+    from track_b.allowlist import PILOT_SITE_CONFIG
+    from track_b.changelog import InMemoryChangeLog
+    from track_b.config import Settings as BSettings
+    from track_b.main import TrackBServices, create_app as create_track_b_app
+    from track_b.onboarding import OnboardedSiteStore
+    from track_b.pending import InMemoryPendingStore
+    from track_b.wordpress import WordPressClient
+    from wp_fake import SITE, FakeWordPress
+
+    fake = FakeWordPress(expected_auth=("editor", "app-pass"))
+    sites = OnboardedSiteStore(tmp_path / "sites.db")
+    sites.add_site(
+        owner_id=OWNER,
+        site_url=SITE,
+        username="editor",
+        app_password="app-pass",
+        allowlist=PILOT_SITE_CONFIG,
+    )
+
+    def make_client(site):
+        return WordPressClient(
+            site.site_url,
+            "editor",
+            "app-pass",
+            client=_httpx.AsyncClient(
+                transport=_httpx.MockTransport(fake.handler)
+            ),
+        )
+
+    services = TrackBServices(
+        sites=sites,
+        pending=InMemoryPendingStore(),
+        changelog=InMemoryChangeLog(),
+        make_client=make_client,
+    )
+    transport = _httpx.ASGITransport(
+        app=create_track_b_app(settings=BSettings(db_path=tmp_path / "tb.db"), services=services)
+    )
+    http = _httpx.AsyncClient(transport=transport, base_url="http://track-b")
     trackb = TrackBClient(base_url="http://track-b", client=http)
 
     router = build_router(
@@ -303,9 +386,7 @@ def test_end_to_end_against_real_track_b_stub():
 
     outcome = handle(router, "yes")
     assert outcome.reason == "publish_success"
-    # The stub echoes a live_url for the owner.
-    assert sender.last_text == (
-        f"Done! Here's the live change: https://example.com/owners/{OWNER}. "
-        "You can undo this within 24h by replying UNDO."
-    )
+    # The real API returns the created post's live_url.
+    assert sender.last_text == compose_completion(f"{SITE}/?p=1")
+    assert fake.posts  # the write actually landed on (fake) WordPress
     assert router.sessions.get(OWNER) is None

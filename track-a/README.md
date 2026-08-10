@@ -55,21 +55,31 @@ milestone scope:
   via the Graph API (`POST /{version}/{phone_number_id}/messages`,
   Bearer token; falls back to logging when unconfigured). The router's
   confirmation exchange handles the reply:
-  - **YES** → submit the intent to Track B (the A1 stub for now) and reply
-    per the result object: `success` → completion with the result's
-    `live_url` ("You can undo this within 24h by replying UNDO"); `failed`
-    → plain-language error using `error_message` (or a generic text) —
-    never a silent failure or a false "done"; `needs_confirmation` →
-    re-send the confirmation prompt defensively.
-  - **NO** → "Okay, cancelled — nothing was changed." — the pending
-    intent is discarded and **no write call is ever made**.
+  - **YES** → resolve the staged confirmation at Track B
+    (`decision=yes`) and reply per the result object: `success` →
+    completion with the result's `live_url` ("You can undo this within 24h
+    by replying UNDO"); `failed` → plain-language error using
+    `error_message` (or a generic text) — never a silent failure or a
+    false "done"; `needs_confirmation` → re-send the confirmation prompt
+    defensively.
+  - **NO** → "Okay, cancelled — nothing was changed." — the discard is
+    relayed to Track B (`decision=no`, which never touches WordPress) and
+    the pending intent is cleared locally.
   - After a failed publish the pending intent is kept so a follow-up YES
     retries and a NO cancels.
 
-**Not built yet (next milestone):** wiring the webhook through this whole
-pipeline (transcribe -> parse -> route -> send -> YES/NO -> Track B). All
-the pieces exist (`app.state.router`); only the webhook still runs the
-transcribe/normalize step.
+- **Integration Phase (real Track B)** — Track A now talks to the *real*
+  Track B API over HTTP (two separate services, per PRD §17). The webhook
+  drives the whole conversation: message → pipeline → `message_text` →
+  `IntentRouter.handle_message`. A confirmation-ready intent is **staged**
+  at Track B first (B3 pending store, 15-minute TTL; the confirmation only
+  goes out once it has a pending change_id), and the owner's YES/NO is
+  relayed as `decision=yes|no` on `/intent`. Reply **UNDO** (promised in
+  the completion message) calls Track B's `/undo`, which reverse-applies
+  the stored before/after state (B4) and replies with a clear result.
+  Both directions still validate against the shared contract at the
+  boundary. End-to-end tests for all four flows (publish, undo,
+  clarification loop, escalation) live in `track-b/tests/test_integration_phase.py`.
 
 ## Configuration (env vars)
 
@@ -81,7 +91,7 @@ transcribe/normalize step.
 | `WHATSAPP_GRAPH_API_VERSION` | `v21.0` | Graph API version for media + send calls. |
 | `OPENAI_API_KEY` | *(empty)* | Key for the LLM intent parser (`OpenAILLMClient`). |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model used by the intent parser. |
-| `TRACK_B_URL` | `http://127.0.0.1:8200` | Where Track B (stub) lives. |
+| `TRACK_B_URL` | `http://127.0.0.1:8200` | Where the real Track B API lives. |
 | `WP_BOT_TRACK_A_DB` | `track-a/data/inbound.db` | SQLite file for the inbound message log. |
 
 ## Run
@@ -101,7 +111,7 @@ pip install -e "./track-a[transcribe]"
 # LLM intent parsing needs the optional openai extra
 pip install -e "./track-a[llm]"
 
-# terminal 1: stub Track B
+# terminal 1: Track B (WordPress site/state service — real API)
 uvicorn track_b.main:app --port 8200
 
 # terminal 2: Track A webhook receiver

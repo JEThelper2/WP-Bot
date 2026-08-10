@@ -29,6 +29,8 @@ from .composer import (
     compose_completion,
     compose_confirmation,
     compose_error,
+    compose_undo_done,
+    compose_undo_error,
 )
 from .intent import IntentParseResult, IntentParser
 from .reply import ReplySender
@@ -175,6 +177,14 @@ def _is_no(text: str) -> bool:
     } or normalized.startswith("no ")
 
 
+def _is_undo(text: str) -> bool:
+    """The UNDO command promised by the completion message."""
+    normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
+    return normalized in {
+        "undo", "undo it", "undo that", "undo this", "revert", "revert it",
+        "revert that", "take it back", "reverse it", "reverse that",
+    }
+
 # ---------------------------------------------------------------------------
 # Routing
 # ---------------------------------------------------------------------------
@@ -261,6 +271,12 @@ class IntentRouter:
         message_text = (message_text or "").strip()
         state = self.sessions.get(owner_id)
 
+        # --- UNDO command (promised in the completion message). Only when
+        # no confirmation/escalation decision is pending. ---
+        if state is None and _is_undo(message_text):
+            outcome = await self._handle_undo(owner_id)
+            return await self._send(owner_id, outcome)
+
         # --- mid-conversation: awaiting a YES/NO on an offer or publish ---
         if state is not None and state.branch == "escalate":
             outcome = self._handle_escalation_reply(owner_id, state, message_text)
@@ -277,6 +293,16 @@ class IntentRouter:
         )
         parse = await self.parser.parse(message_text, owner_id, context=context)
         outcome = self._route(owner_id, parse, message_text, prior=state)
+        # A confirmation-ready intent is STAGED at Track B before the
+        # confirmation goes out (Integration Phase): the owner's YES/NO then
+        # resolves a real pending confirmation instead of Track A holding
+        # the only copy of the intent.
+        if (
+            outcome.branch == "confirm"
+            and outcome.reason == "confirmation_ready"
+            and outcome.intent is not None
+        ):
+            outcome = await self._stage_pending(owner_id, outcome)
         return await self._send(owner_id, outcome)
 
     async def _send(self, owner_id: str, outcome: RouteOutcome) -> RouteOutcome:
@@ -297,7 +323,10 @@ class IntentRouter:
             return RouteOutcome(branch="confirm", reply_text=reply, reason="no_pending_intent")
 
         if _is_no(message_text):
-            # NO cancels: discard the pending intent, NEVER call Track B.
+            # NO cancels: tell Track B to discard the staged pending, then
+            # clear locally. No WordPress write is ever made (Track B's
+            # discard path writes nothing).
+            await self._discard_pending(owner_id, intent)
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="confirm",
@@ -315,12 +344,100 @@ class IntentRouter:
             reason="confirmation_repeat",
         )
 
+    async def _stage_pending(
+        self, owner_id: str, outcome: RouteOutcome
+    ) -> RouteOutcome:
+        """Hold the confirmation-ready intent at Track B (B3) before asking.
+
+        The confirmation prompt only goes out once the intent is staged and
+        has a pending change_id at Track B; a failure here becomes an error
+        reply instead of a confirmation that can never resolve.
+        """
+        intent = outcome.intent
+        assert intent is not None
+        try:
+            result = await self.trackb.submit_intent(intent)  # decision=None
+        except Exception as exc:  # transport or contract violation
+            logger.warning("staging failed for owner %s: %s", owner_id, exc)
+            self.sessions.clear(owner_id)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_error(None),
+                reason="stage_failed",
+            )
+
+        status = result.get("status")
+        if status == "needs_confirmation":
+            return outcome  # staged; send the confirmation prompt
+
+        # Defensive: a Track B that executes immediately on stage (the old
+        # stub, or a misconfigured deployment) has already published.
+        self.sessions.clear(owner_id)
+        if status == "success":
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_completion(result.get("live_url")),
+                reason="stage_published",
+            )
+        if status == "failed":
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_error(result.get("error_message")),
+                reason="stage_failed",
+            )
+        logger.warning(
+            "unexpected stage result status %r for owner %s", status, owner_id
+        )
+        return RouteOutcome(
+            branch="confirm",
+            reply_text=compose_error(
+                f"Unexpected response from the publisher ({status!r})."
+            ),
+            reason="unexpected_status",
+        )
+
+    async def _discard_pending(
+        self, owner_id: str, intent: dict[str, Any]
+    ) -> None:
+        """Relay the NO to Track B so the staged pending is discarded."""
+        try:
+            await self.trackb.submit_intent(intent, decision="no")
+        except Exception as exc:
+            # The owner's intent is cleared locally regardless; Track B's
+            # TTL expires the stale pending.
+            logger.warning(
+                "discard of pending intent failed for owner %s: %s", owner_id, exc
+            )
+
+    async def _handle_undo(self, owner_id: str) -> RouteOutcome:
+        """Reply UNDO: reverse the owner's most recent change via Track B."""
+        try:
+            result = await self.trackb.undo(owner_id)
+        except Exception as exc:
+            logger.warning("undo call failed for owner %s: %s", owner_id, exc)
+            return RouteOutcome(
+                branch="undo",
+                reply_text=compose_undo_error(None),
+                reason="undo_error",
+            )
+        if result.get("status") == "success":
+            return RouteOutcome(
+                branch="undo",
+                reply_text=compose_undo_done(result.get("live_url")),
+                reason="undo_done",
+            )
+        return RouteOutcome(
+            branch="undo",
+            reply_text=compose_undo_error(result.get("error_message")),
+            reason="undo_failed",
+        )
+
     async def _submit_pending(
         self, owner_id: str, intent: dict[str, Any]
     ) -> RouteOutcome:
-        """YES: publish to Track B and reply per the result object."""
+        """YES: resolve the staged confirmation and reply per the result."""
         try:
-            result = await self.trackb.submit_intent(intent)
+            result = await self.trackb.submit_intent(intent, decision="yes")
         except TrackBError as exc:
             logger.warning("Track B contract violation for owner %s: %s", owner_id, exc)
             return RouteOutcome(

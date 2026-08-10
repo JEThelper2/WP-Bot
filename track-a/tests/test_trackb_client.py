@@ -104,3 +104,85 @@ def test_non_contract_result_from_track_b_raises() -> None:
 
     with pytest.raises(TrackBError):
         run(client.submit_intent(valid_intent()))
+
+
+def _contract_result(status: str = "success", **overrides) -> dict:
+    r = {
+        "contract_version": CONTRACT_VERSION,
+        "status": status,
+        "change_id": "ch-x",
+        "before": None,
+        "after": None,
+        "live_url": None,
+        "error_message": None,
+    }
+    r.update(overrides)
+    return r
+
+
+def test_submit_intent_with_decision_appends_the_query_param() -> None:
+    """YES/NO resolutions ride on ?decision=... (the body stays a pure
+    intent object, since the schema forbids extra keys)."""
+    from fastapi import FastAPI, Request
+
+    seen: list[str] = []
+
+    fake_b = FastAPI()
+
+    @fake_b.post("/intent")
+    async def intent(request: Request) -> dict:
+        seen.append(str(request.url))
+        return _contract_result("needs_confirmation", change_id="pc-1")
+
+    transport = httpx.ASGITransport(app=fake_b)
+    http = httpx.AsyncClient(transport=transport, base_url="http://track-b")
+    client = TrackBClient(base_url="http://track-b", client=http)
+
+    run(client.submit_intent(valid_intent()))
+    run(client.submit_intent(valid_intent(), decision="yes"))
+    run(client.submit_intent(valid_intent(), decision="no"))
+
+    assert seen == [
+        "http://track-b/intent",
+        "http://track-b/intent?decision=yes",
+        "http://track-b/intent?decision=no",
+    ]
+
+
+def test_undo_posts_owner_id_and_returns_validated_result() -> None:
+    from fastapi import FastAPI, Request
+
+    seen: dict = {}
+
+    fake_b = FastAPI()
+
+    @fake_b.post("/undo")
+    async def undo(request: Request) -> dict:
+        seen["body"] = await request.json()
+        return _contract_result(live_url="https://wp.example.com/?p=1")
+
+    transport = httpx.ASGITransport(app=fake_b)
+    http = httpx.AsyncClient(transport=transport, base_url="http://track-b")
+    client = TrackBClient(base_url="http://track-b", client=http)
+
+    result = run(client.undo("owner-1"))
+    assert seen["body"] == {"owner_id": "owner-1"}
+    assert result["status"] == "success"
+    assert result["live_url"] == "https://wp.example.com/?p=1"
+
+
+def test_undo_non_contract_result_raises() -> None:
+    from fastapi import FastAPI
+
+    fake_b = FastAPI()
+
+    @fake_b.post("/undo")
+    async def garbage(payload: dict) -> dict:
+        return {"status": "success"}  # missing change_id / contract_version
+
+    transport = httpx.ASGITransport(app=fake_b)
+    http = httpx.AsyncClient(transport=transport, base_url="http://track-b")
+    client = TrackBClient(base_url="http://track-b", client=http)
+
+    with pytest.raises(TrackBError):
+        run(client.undo("owner-1"))

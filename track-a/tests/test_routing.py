@@ -57,7 +57,44 @@ class ScriptedParser:
         return self.results.pop(0)
 
 
-def make_router(parser: ScriptedParser, db: Path | None = None) -> IntentRouter:
+class FakeTrackB:
+    """Stages every confirmation successfully; resolution is scripted."""
+
+    def __init__(self, *resolve_results: dict) -> None:
+        self.resolve_results = list(resolve_results)
+        self.calls: list[tuple[dict, str | None]] = []
+
+    async def submit_intent(self, intent: dict, *, decision: str | None = None) -> dict:
+        self.calls.append((intent, decision))
+        if decision is None:
+            return {
+                "contract_version": CONTRACT_VERSION,
+                "status": "needs_confirmation",
+                "change_id": "pc-test",
+                "before": None,
+                "after": None,
+                "live_url": None,
+                "error_message": None,
+            }
+        if decision == "no":
+            return {
+                "contract_version": CONTRACT_VERSION,
+                "status": "success",
+                "change_id": "pc-test",
+                "before": None,
+                "after": None,
+                "live_url": None,
+                "error_message": None,
+            }
+        return self.resolve_results.pop(0)
+
+    async def undo(self, owner_id: str) -> dict:
+        raise AssertionError("undo should not be exercised by routing tests")
+
+
+def make_router(
+    parser: ScriptedParser, db: Path | None = None, trackb: FakeTrackB | None = None
+) -> IntentRouter:
     sessions = SessionStore()
     log_escalation = (
         (lambda owner, msg: store.log_escalation_request(db, owner, msg))
@@ -65,7 +102,10 @@ def make_router(parser: ScriptedParser, db: Path | None = None) -> IntentRouter:
         else None
     )
     return IntentRouter(
-        parser=parser, sessions=sessions, log_escalation=log_escalation
+        parser=parser,
+        sessions=sessions,
+        log_escalation=log_escalation,
+        trackb=trackb or FakeTrackB(),
     )
 
 
@@ -86,7 +126,8 @@ def test_high_confidence_complete_job_goes_to_confirm():
         {"title": "Part-time Barista", "description": "$18/hr downtown"},
         0.9,
     )
-    router = make_router(ScriptedParser(parse_intent(intent)))
+    trackb = FakeTrackB()
+    router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
     outcome = handle(router, "post a job for a barista downtown")
     assert outcome.branch == "confirm"
     assert outcome.intent == intent
@@ -96,6 +137,8 @@ def test_high_confidence_complete_job_goes_to_confirm():
     state = router.sessions.get(OWNER)
     assert state is not None and state.branch == "confirm"
     assert state.pending_intent == intent
+    # Integration Phase: the intent was STAGED at Track B before asking.
+    assert trackb.calls == [(intent, None)]
 
 
 def test_business_info_partial_update_confirms():
@@ -110,9 +153,12 @@ def test_business_info_partial_update_confirms():
 def test_announcement_update_with_partial_fields_confirms():
     # update/delete allow partial sets: no title/body required.
     intent = make_intent("update", "announcement", {"body": "Closed July 4th"}, 0.88)
-    router = make_router(ScriptedParser(parse_intent(intent)))
+    trackb = FakeTrackB()
+    router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
     outcome = handle(router, "update the announcement to say we're closed July 4")
     assert outcome.branch == "confirm"
+    # Staged for the owner's YES/NO (Integration Phase).
+    assert trackb.calls == [(intent, None)]
 
 
 # ---------------------------------------------------------------- clarify

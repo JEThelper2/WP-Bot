@@ -19,6 +19,11 @@ GENERIC_ERROR_REPLY_TEXT = (
     "Something went wrong on our end — nothing was published. Want to try again?"
 )
 
+UNDO_GENERIC_ERROR_TEXT = (
+    "Something went wrong while trying to undo that change — nothing was "
+    "reverted. Please try again."
+)
+
 
 def compose_confirmation(intent: dict[str, Any]) -> str:
     """Human-readable confirmation for a validated, complete intent."""
@@ -136,3 +141,24 @@ def compose_error(error_message: str | None) -> str:
 def compose_cancelled() -> str:
     """Reply when the owner declines a confirmed change (NO)."""
     return CANCEL_REPLY_TEXT
+
+
+def compose_undo_done(live_url: str | None) -> str:
+    """Reply when Track B reports the owner's last change was reverted."""
+    if live_url:
+        return (
+            f"Done — your last change has been reverted. "
+            f"Here's the live state: {live_url}."
+        )
+    return "Done — your last change has been reverted."
+
+
+def compose_undo_error(error_message: str | None) -> str:
+    """Plain-language undo failure — never a silent no-op.
+
+    Uses Track B's error_message (e.g. "nothing to undo", "outside the
+    24h undo window") when present; otherwise the generic text.
+    """
+    if error_message:
+        return f"Couldn't undo that change: {error_message}"
+    return UNDO_GENERIC_ERROR_TEXT

@@ -2,15 +2,21 @@
 
 Two parts:
 
-1. A **stub app** (`track_b.stub.create_stub_app`) that Track A still
-   calls against until the Integration Phase swaps it for the real API.
-   It validates intents with `validate_intent` and returns a canned
-   contract-valid success result.
+1. A **stub app** (`track_b.stub.create_stub_app`) that only survives as
+   a legacy test double — the Integration Phase is done, and Track A now
+   calls the real API below.
 2. The **real API** (`track_b.main.create_app`): `POST /intent` stages or
    resolves intents (B3), applies them through the B2 allowlist + B1
    WordPress client, logs every write (B4), plus `POST /undo` and
    `POST /sites/onboard` (B5). The WordPress client sandbox lives in
    `wp-sandbox/`.
+
+Track A stages a confirmation-ready intent here (getting a pending
+`change_id` back) and relays the owner's YES/NO as `?decision=yes|no`;
+"UNDO" from the owner hits `POST /undo`. The cross-service end-to-end
+suite for all four core flows (publish, undo, clarification loop,
+escalation) is `track-b/tests/test_integration_phase.py` — both real
+apps over HTTP.
 
 ## Pending-confirmation store
 
