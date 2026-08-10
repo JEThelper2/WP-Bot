@@ -35,6 +35,7 @@ class Settings:
     secrets_key: str = ""
     db_path: Path = _DEFAULT_DB
     redis_url: str = "redis://localhost:6379/0"
+    pg_dsn: str = ""  # Postgres DSN for the change log; empty -> in-memory dev log
     business_info_option_key: str = BUSINESS_INFO_OPTION_KEY
     image_slot_allowlist: dict[str, str] = field(
         default_factory=lambda: dict(IMAGE_SLOT_ALLOWLIST)
@@ -50,6 +51,7 @@ class Settings:
             redis_url=os.environ.get(
                 "WPBOT_REDIS_URL", "redis://localhost:6379/0"
             ),
+            pg_dsn=os.environ.get("WPBOT_PG_DSN", ""),
             business_info_option_key=os.environ.get(
                 "WPBOT_BUSINESS_INFO_OPTION", BUSINESS_INFO_OPTION_KEY
             ),

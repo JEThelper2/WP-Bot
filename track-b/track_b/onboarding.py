@@ -179,6 +179,18 @@ class OnboardedSiteStore:
             ).fetchall()
         return [self._row_to_site(row) for row in rows]
 
+    def credentials_for(self, site_id: str) -> tuple[str, str] | None:
+        """(username, decrypted app password) for a site, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT username, encrypted_password FROM onboarded_sites "
+                "WHERE site_id = ?",
+                (site_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return row["username"], self.vault.decrypt(row["encrypted_password"])
+
     def set_status(self, site_id: str, status: str) -> None:
         with self._connect() as conn:
             conn.execute(

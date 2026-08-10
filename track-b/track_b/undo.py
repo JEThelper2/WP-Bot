@@ -63,12 +63,16 @@ class UndoResult:
         change_id: str | None = None,
         original_change_id: str | None = None,
         live_url: str | None = None,
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
     ) -> None:
         self.status = status
         self.message = message
         self.change_id = change_id
         self.original_change_id = original_change_id
         self.live_url = live_url
+        self.before = before
+        self.after = after
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"UndoResult(status={self.status!r}, message={self.message!r})"
@@ -136,6 +140,8 @@ async def undo(
             "the undo was applied but could not be logged — treat as not "
             "undone, and do not trust the live state",
             original_change_id=row.change_id,
+            before=record.before,
+            after=record.after,
         )
 
     logger.info("owner %s undone change %s -> %s", owner_id, row.change_id, stamped.change_id)
@@ -145,6 +151,8 @@ async def undo(
         change_id=stamped.change_id,
         original_change_id=row.change_id,
         live_url=record.live_url,
+        before=record.before,
+        after=record.after,
     )
 
 

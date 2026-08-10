@@ -217,6 +217,7 @@ async def apply_intent(
     config: SiteConfig,
     client: WordPressClient,
     changelog: ChangeLog | None = None,
+    change_id: str | None = None,
 ) -> dict[str, Any]:
     """Validate an intent against the site's allowlist and apply it.
 
@@ -235,7 +236,7 @@ async def apply_intent(
         logger.info("intent rejected by gate: %s", exc)
         return _failed_result(str(exc))
 
-    change_id = f"ch-{uuid.uuid4().hex[:12]}"
+    change_id = change_id or f"ch-{uuid.uuid4().hex[:12]}"
     try:
         record = await _dispatch(intent, client)
     except (WordPressError, IntentNotAllowedError) as exc:

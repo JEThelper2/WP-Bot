@@ -2,14 +2,14 @@
 
 Two parts:
 
-1. A **FastAPI stub** (`POST /intent`) that Track A calls against today. It
-   validates intents with `validate_intent` and always returns a canned
-   contract-valid success result, so Track A's full conversation flow is
-   testable end-to-end before Track B becomes real.
-2. The **WordPress REST API client** (`track_b.wordpress.WordPressClient`)
-   — the real thing Track B will use to apply intents to a site (B1),
-   fronted by the **allowlist gate** (`track_b.allowlist`, B2) that no
-   intent can bypass. The sandbox used to test the client lives in
+1. A **stub app** (`track_b.stub.create_stub_app`) that Track A still
+   calls against until the Integration Phase swaps it for the real API.
+   It validates intents with `validate_intent` and returns a canned
+   contract-valid success result.
+2. The **real API** (`track_b.main.create_app`): `POST /intent` stages or
+   resolves intents (B3), applies them through the B2 allowlist + B1
+   WordPress client, logs every write (B4), plus `POST /undo` and
+   `POST /sites/onboard` (B5). The WordPress client sandbox lives in
    `wp-sandbox/`.
 
 ## Pending-confirmation store
@@ -211,7 +211,7 @@ application password, and installs the mu-plugin. Integration coverage:
 successful create, update, delete, business_info, and a failure case
 (invalid application password → clear error, credential not leaked).
 
-## Run the stub
+## Run the real API
 
 ```bash
 # from the repo root
@@ -219,7 +219,24 @@ pip install -e ./shared-contract -e ./track-a -e ./track-b
 uvicorn track_b.main:app --port 8200
 ```
 
+The app boots without external services: without `WPBOT_REDIS_URL`-reachable
+Redis or `WPBOT_PG_DSN`, it falls back to in-memory pending/change stores
+with a warning (dev only — production must set both).
+
 | Endpoint | Behavior |
 |---|---|
+| `POST /intent` | Accepts an intent object (validated against intent.schema.json). No `decision` → **stage** as pending (B3, `needs_confirmation` result + change_id). `?decision=yes` → resolve, then B2 allowlist → B1 write → B4 log, returning success with real before/after/live_url. `?decision=no` → discard, nothing written. Always a `validate_result()`-checked result object. |
+| `POST /undo` | `{owner_id}` → reverse-apply the owner's most recent change through B4 (create→delete, update→write-back, delete→re-create); logs the undo row. |
+| `POST /sites/onboard` | PRD §12: validate site credentials, persist onboarded site (see below). |
 | `GET /health` | Liveness check. |
-| `POST /intent` | Validates the intent; canned success result (`change_id` `stub-*`). |
+
+Full lifecycle, directly testable without WhatsApp:
+
+```bash
+curl -X POST localhost:8200/intent -H 'Content-Type: application/json' \
+  -d '{"contract_version":"1.0.0","owner_id":"...","action":"create","content_type":"job","fields":{"title":"Barista","description":"$18/hr"},"confidence":0.95}'
+# -> status needs_confirmation, change_id pc-...
+curl -X POST "localhost:8200/intent?decision=yes" -H 'Content-Type: application/json' -d '{...same intent...}'
+# -> status success, before/after/live_url (write only happens for an
+#    onboarded site, and then is logged + undoable within 24h)
+```

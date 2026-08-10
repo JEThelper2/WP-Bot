@@ -287,7 +287,9 @@ def test_end_to_end_against_real_track_b_stub():
     """Webhook-in -> confirmation -> YES -> real stub -> completion out."""
     intent = make_intent()
     sender = FakeSender()
-    transport = httpx.ASGITransport(app=__import__("track_b.main", fromlist=["create_app"]).create_app())
+    from track_b.stub import create_stub_app
+
+    transport = httpx.ASGITransport(app=create_stub_app())
     http = httpx.AsyncClient(transport=transport, base_url="http://track-b")
     trackb = TrackBClient(base_url="http://track-b", client=http)
 
