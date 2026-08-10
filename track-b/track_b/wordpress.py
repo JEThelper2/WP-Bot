@@ -92,6 +92,17 @@ class WordPressClient:
             auth=self._auth, timeout=timeout
         )
 
+    # ------------------------------------------------------------ auth probe
+
+    async def get_current_user(self) -> dict[str, Any]:
+        """Fetch the authenticated user (users/me) — the onboarding read probe.
+
+        Raises `WordPressError` on failure; `status_code` distinguishes
+        invalid credentials (401/403) from other failures.
+        """
+        resp = await self._request("GET", "/wp-json/wp/v2/users/me")
+        return resp.json()
+
     # ------------------------------------------------------------ posts
 
     async def create_post(
@@ -398,7 +409,12 @@ class WordPressClient:
     ) -> httpx.Response | None:
         url = f"{self.base_url}{path}"
         try:
-            resp = await self._client.request(method, url, **kwargs)
+            # Always authenticate with THIS client's credentials, even when
+            # an externally-constructed httpx client was injected (tests,
+            # app wiring) — never depend on how the transport was set up.
+            resp = await self._client.request(
+                method, url, auth=self._auth, **kwargs
+            )
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
             raise WordPressError(
                 f"could not reach WordPress at {self.base_url} ({type(exc).__name__}); "

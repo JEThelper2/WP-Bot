@@ -118,6 +118,44 @@ def get_site_config(site_url: str) -> SiteConfig:
     return config
 
 
+def config_to_dict(config: SiteConfig) -> dict[str, Any]:
+    """Serialize a SiteConfig (persisted at onboarding; per-site later)."""
+    return {
+        "site_url": config.site_url,
+        "mappings": {
+            ct: {
+                "content_type": m.content_type,
+                "enabled": m.enabled,
+                "allowed_fields": list(m.allowed_fields),
+                "post_type": m.post_type,
+                "category": m.category,
+                "option_key": m.option_key,
+                "image_slots": list(m.image_slots),
+            }
+            for ct, m in config.mappings.items()
+        },
+    }
+
+
+def config_from_dict(data: dict[str, Any]) -> SiteConfig:
+    """Rebuild a SiteConfig from `config_to_dict` output."""
+    return SiteConfig(
+        site_url=data["site_url"],
+        mappings={
+            ct: ContentTypeMapping(
+                content_type=m.get("content_type", ct),
+                enabled=bool(m.get("enabled", True)),
+                allowed_fields=tuple(m.get("allowed_fields", ())),
+                post_type=m.get("post_type"),
+                category=m.get("category"),
+                option_key=m.get("option_key"),
+                image_slots=tuple(m.get("image_slots", ())),
+            )
+            for ct, m in data.get("mappings", {}).items()
+        },
+    )
+
+
 def register_site_config(config: SiteConfig) -> None:
     """Register/replace a site config (used by tests and future provisioning)."""
     _SITE_CONFIGS[config.site_url] = config

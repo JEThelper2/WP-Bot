@@ -31,6 +31,31 @@ the owner's YES/NO — the only release valve into the write pipeline:
 Redis itself); `InMemoryPendingStore` backs tests with an injectable
 clock. Set `WPBOT_REDIS_URL` (default `redis://localhost:6379/0`).
 
+## Onboarding validation (PRD §12, step 3)
+
+`POST /sites/onboard` (payload `site_url`, `username`, `app_password`,
+`owner_id`) validates a submission against the live site, then persists
+an onboarded site record — site_id, owner_id, **encrypted** credentials,
+the default B2 allowlist config (`PILOT_SITE_CONFIG`), status `active`
+(SQLite via `track_b.onboarding.OnboardedSiteStore`). Validation is a
+**read-only probe** (`users/me`) that distinguishes the failure modes
+Track A's onboarding conversation must explain:
+
+| Reason | Means |
+|---|---|
+| `invalid_url` | not a plausible http(s) URL (rejected before any HTTP) |
+| `unreachable` | site could not be reached |
+| `not_wordpress` | no WordPress REST API at the URL |
+| `invalid_credentials` | application password rejected (401/403) |
+| `insufficient_permissions` | user lacks `edit_posts` (e.g. Subscriber, not Editor+) |
+
+Success returns `site_id`; failure is HTTP 422 with the specific
+`reason`. **Tradeoff:** read-only validation checks the `edit_posts`
+capability rather than performing a test write-then-undo — stronger
+confidence would require mutating the site during onboarding, which v1
+avoids. A failed onboarding persists nothing, and the password never
+reaches disk in plaintext or a log.
+
 ## Change log + undo (PRD §11)
 
 Every successful write logs a row to **Postgres** (`change_log` via

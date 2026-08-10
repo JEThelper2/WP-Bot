@@ -22,7 +22,23 @@ def wp_post(post_id, title, content, status="publish", categories=(1,)):
 class FakeWordPress:
     """In-memory WordPress REST API; pass `.handler` to MockTransport."""
 
-    def __init__(self, *, has_jobs_cpt=False, has_muplugin=True):
+    # Capabilities implied by each role (used by the users/me probe).
+    ROLE_CAPABILITIES = {
+        "administrator": {"manage_options": True, "edit_posts": True},
+        "editor": {"edit_posts": True},
+        "author": {"edit_posts": True},
+        "contributor": {},
+        "subscriber": {},
+    }
+
+    def __init__(
+        self,
+        *,
+        has_jobs_cpt=False,
+        has_muplugin=True,
+        user_roles=("editor",),
+        expected_auth=None,
+    ):
         self.posts: dict[int, dict] = {}
         self.next_id = 1
         self.categories = {"jobs": 10, "announcements": 11}
@@ -31,6 +47,9 @@ class FakeWordPress:
         self.requests: list[httpx.Request] = []
         self.has_jobs_cpt = has_jobs_cpt
         self.has_muplugin = has_muplugin
+        self.user_roles = list(user_roles)
+        # (username, app_password) that authenticate; anything else -> 401.
+        self.expected_auth = expected_auth
         self.inject_status: int | None = None
         self.inject_body: dict | None = None
         self.connect_error = False
@@ -49,6 +68,32 @@ class FakeWordPress:
 
         method = request.method
         path = request.url.path
+        if path == "/wp-json/":
+            return httpx.Response(
+                200, json={"name": "WP-Bot Sandbox", "routes": {"/wp/v2": True}}
+            )
+        if path == "/wp-json/wp/v2/users/me":
+            if self.expected_auth is not None:
+                import base64
+
+                expected = "Basic " + base64.b64encode(
+                    f"{self.expected_auth[0]}:{self.expected_auth[1]}".encode()
+                ).decode()
+                if request.headers.get("authorization") != expected:
+                    return httpx.Response(
+                        401,
+                        json={"code": "rest_forbidden", "message": "Sorry, you are not allowed to do that."},
+                    )
+            caps = self.ROLE_CAPABILITIES.get(self.user_roles[-1], {})
+            return httpx.Response(
+                200,
+                json={
+                    "id": 1,
+                    "name": self.user_roles[-1],
+                    "roles": self.user_roles,
+                    "capabilities": caps,
+                },
+            )
         if path == "/wp-json/wp/v2/types":
             types = {"post": {"rest_base": "posts"}}
             if self.has_jobs_cpt:
