@@ -22,7 +22,8 @@ class Settings:
     verify_token: str = DEFAULT_VERIFY_TOKEN
     track_b_url: str = "http://127.0.0.1:8200"
     db_path: Path = _DEFAULT_DB_PATH
-    api_token: str = ""  # WhatsApp system-user access token (Media API)
+    api_token: str = ""  # WhatsApp system-user access token (Media + Messages API)
+    phone_number_id: str = ""  # business phone number id (outbound messages)
     api_version: str = "v21.0"
 
     @classmethod
@@ -37,5 +38,6 @@ class Settings:
                 )
             ),
             api_token=os.environ.get("WHATSAPP_API_TOKEN", ""),
+            phone_number_id=os.environ.get("WHATSAPP_PHONE_NUMBER_ID", ""),
             api_version=os.environ.get("WHATSAPP_GRAPH_API_VERSION", "v21.0"),
         )

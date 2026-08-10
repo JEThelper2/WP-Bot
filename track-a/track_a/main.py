@@ -9,9 +9,12 @@ Current scope:
   `message_text` directly; voice notes are downloaded via Meta's Media
   API and transcribed (Whisper), routing to a low-confidence fallback
   reply when the transcript can't be trusted. See `track_a.pipeline`.
-- Intent parsing / sending intents to Track B is the next milestone; the
-  Track B client (`track_a.trackb.TrackBClient`) is ready and
-  contract-validated for it.
+- A3/A4/A5 build the rest of the conversation: intent parsing, the
+  confirm/clarify/escalate branches, and the full outbound flow
+  (confirmation -> YES/NO -> Track B -> completion/error reply). The
+  router (`track_a.routing.IntentRouter`, attached at `app.state.router`)
+  is ready to be driven from the webhook once it is wired end-to-end; for
+  now the webhook only runs the transcribe/normalize pipeline.
 
 Meta expects every accepted webhook delivery to be answered with HTTP 200;
 anything else makes Meta retry (or drop) the delivery.
@@ -29,7 +32,8 @@ from fastapi.responses import PlainTextResponse
 from .config import Settings
 from .media import WhatsAppMediaClient
 from .pipeline import MessageProcessor
-from .reply import ReplySender
+from .reply import ReplySender, WhatsAppReplySender
+from .routing import IntentRouter
 from .store import (
     count_escalation_requests,
     count_messages,
@@ -37,7 +41,9 @@ from .store import (
     insert_message,
     list_escalation_requests,
     list_messages,
+    log_escalation_request,
 )
+from .trackb import TrackBClient
 from .transcribe import WhisperTranscriber
 
 logger = logging.getLogger("track_a.webhook")
@@ -56,6 +62,11 @@ def create_app(
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     init_db(settings.db_path)
+    sender = WhatsAppReplySender(
+        api_token=settings.api_token,
+        phone_number_id=settings.phone_number_id,
+        api_version=settings.api_version,
+    )
     if processor is None:
         processor = MessageProcessor(
             db_path=settings.db_path,
@@ -64,8 +75,16 @@ def create_app(
                 api_version=settings.api_version,
             ),
             transcriber=WhisperTranscriber(),
-            sender=ReplySender(),
+            sender=sender,
         )
+
+    router = IntentRouter(
+        sender=sender,
+        trackb=TrackBClient(base_url=settings.track_b_url),
+        log_escalation=lambda owner, msg: log_escalation_request(
+            settings.db_path, owner, msg
+        ),
+    )
 
     app = FastAPI(
         title="WP-Bot Track A (WhatsApp conversation service)",
@@ -78,6 +97,7 @@ def create_app(
     )
     app.state.settings = settings
     app.state.processor = processor
+    app.state.router = router
 
     @app.get("/health")
     async def health() -> dict[str, str]:

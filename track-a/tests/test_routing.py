@@ -90,7 +90,12 @@ def test_high_confidence_complete_job_goes_to_confirm():
     outcome = handle(router, "post a job for a barista downtown")
     assert outcome.branch == "confirm"
     assert outcome.intent == intent
-    assert outcome.reply_text is None  # A5 owns the confirmation message
+    # A5: the confirmation prompt is composed and sent, awaiting YES/NO.
+    from track_a.composer import compose_confirmation
+    assert outcome.reply_text == compose_confirmation(intent)
+    state = router.sessions.get(OWNER)
+    assert state is not None and state.branch == "confirm"
+    assert state.pending_intent == intent
 
 
 def test_business_info_partial_update_confirms():
@@ -200,8 +205,10 @@ def test_clarification_reenters_parse_with_context_and_resolves():
     assert ctx is not None
     assert "post a job" in ctx
     assert "What's the job title?" in ctx
-    # Loop closed: session is cleared.
-    assert router.sessions.get(OWNER) is None
+    # Loop closed: the intent is now held for confirmation (A5).
+    state = router.sessions.get(OWNER)
+    assert state is not None and state.branch == "confirm"
+    assert state.pending_intent["fields"]["title"] == "Cashier"
 
 
 def test_clarification_loop_caps_at_max_turns():

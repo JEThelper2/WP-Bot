@@ -24,8 +24,16 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .composer import (
+    CANCEL_REPLY_TEXT,
+    compose_completion,
+    compose_confirmation,
+    compose_error,
+)
 from .intent import IntentParseResult, IntentParser
+from .reply import ReplySender
 from .session import SessionState, SessionStore
+from .trackb import TrackBClient, TrackBError
 
 logger = logging.getLogger("track_a.routing")
 
@@ -218,10 +226,13 @@ def _confirmation_question(intent: dict[str, Any]) -> str:
 class IntentRouter:
     """Decides the branch for a parse result and drives the loops.
 
-    `handle_message` is the entrypoint the webhook will call: it checks
-    the owner's session (pending clarification / escalation), re-enters
-    A3 parsing with conversation context when mid-clarification, routes
-    the result, and persists session state.
+    `handle_message` is the entrypoint the webhook will call. It checks
+    the owner's session (pending clarification / confirmation /
+    escalation), re-enters A3 parsing with conversation context when
+    mid-clarification, routes the result, and — when the branch produces
+    a reply — sends it to the owner via the injected sender. A5 adds the
+    confirmation exchange: a YES submits the pending intent to Track B
+    and replies per the result; a NO cancels without any write call.
 
     The escalation logger is injected (a callable taking owner_id and the
     original message) so the router stays independent of the store; the
@@ -235,20 +246,28 @@ class IntentRouter:
         *,
         threshold: float = CONFIDENCE_THRESHOLD,
         log_escalation: Callable[[str, str], None] | None = None,
+        sender: Any = None,
+        trackb: TrackBClient | Any = None,
     ) -> None:
         self.parser = parser or IntentParser()
         self.sessions = sessions or SessionStore()
         self.threshold = threshold
         self.log_escalation = log_escalation or (lambda owner, msg: None)
+        self.sender = sender or ReplySender()
+        self.trackb = trackb or TrackBClient(base_url="http://127.0.0.1:8200")
 
     async def handle_message(self, owner_id: str, message_text: str) -> RouteOutcome:
-        """Route one owner message to exactly one branch."""
+        """Route one owner message to exactly one branch; send any reply."""
         message_text = (message_text or "").strip()
         state = self.sessions.get(owner_id)
 
-        # --- mid-escalation: awaiting a yes/no on the developer offer ---
+        # --- mid-conversation: awaiting a YES/NO on an offer or publish ---
         if state is not None and state.branch == "escalate":
-            return self._handle_escalation_reply(owner_id, state, message_text)
+            outcome = self._handle_escalation_reply(owner_id, state, message_text)
+            return await self._send(owner_id, outcome)
+        if state is not None and state.branch == "confirm":
+            outcome = await self._handle_confirmation_reply(owner_id, state, message_text)
+            return await self._send(owner_id, outcome)
 
         # --- normal path: parse (with prior-exchange context if clarifying) ---
         context = (
@@ -257,7 +276,97 @@ class IntentRouter:
             else None
         )
         parse = await self.parser.parse(message_text, owner_id, context=context)
-        return self._route(owner_id, parse, message_text, prior=state)
+        outcome = self._route(owner_id, parse, message_text, prior=state)
+        return await self._send(owner_id, outcome)
+
+    async def _send(self, owner_id: str, outcome: RouteOutcome) -> RouteOutcome:
+        """Send the outcome's reply (if any) and return it unchanged."""
+        if outcome.reply_text is not None:
+            await self.sender.send(owner_id, outcome.reply_text)
+        return outcome
+
+    # -- confirmation exchange (A5) ---------------------------------------
+
+    async def _handle_confirmation_reply(
+        self, owner_id: str, state: SessionState, message_text: str
+    ) -> RouteOutcome:
+        intent = state.pending_intent
+        if intent is None:
+            self.sessions.clear(owner_id)
+            reply = "Sorry, something went wrong with that request — please send it again."
+            return RouteOutcome(branch="confirm", reply_text=reply, reason="no_pending_intent")
+
+        if _is_no(message_text):
+            # NO cancels: discard the pending intent, NEVER call Track B.
+            self.sessions.clear(owner_id)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=CANCEL_REPLY_TEXT,
+                reason="cancelled",
+            )
+
+        if _is_yes(message_text):
+            return await self._submit_pending(owner_id, intent)
+
+        # Not a clear yes/no: re-send the confirmation prompt.
+        return RouteOutcome(
+            branch="confirm",
+            reply_text=compose_confirmation(intent),
+            reason="confirmation_repeat",
+        )
+
+    async def _submit_pending(
+        self, owner_id: str, intent: dict[str, Any]
+    ) -> RouteOutcome:
+        """YES: publish to Track B and reply per the result object."""
+        try:
+            result = await self.trackb.submit_intent(intent)
+        except TrackBError as exc:
+            logger.warning("Track B contract violation for owner %s: %s", owner_id, exc)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_error(None),
+                reason="submit_error",
+            )
+        except Exception as exc:  # transport failure
+            logger.warning("Track B submit failed for owner %s: %s", owner_id, exc)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_error(None),
+                reason="submit_error",
+            )
+
+        status = result.get("status")
+        if status == "success":
+            self.sessions.clear(owner_id)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_completion(result.get("live_url")),
+                reason="publish_success",
+            )
+        if status == "failed":
+            # Keep the pending intent: the error invites "Want to try again?",
+            # so a follow-up YES retries and a NO cancels.
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_error(result.get("error_message")),
+                reason="publish_failed",
+            )
+        if status == "needs_confirmation":
+            # Defensive: shouldn't normally occur post-YES; re-ask.
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=compose_confirmation(intent),
+                reason="needs_confirmation",
+            )
+
+        # Unknown status: never fake success.
+        logger.warning("unexpected Track B result status %r for owner %s", status, owner_id)
+        return RouteOutcome(
+            branch="confirm",
+            reply_text=compose_error(f"Unexpected response from the publisher ({status!r})."),
+            reason="unexpected_status",
+        )
 
     # -- branch decisions --------------------------------------------------
 
@@ -293,10 +402,16 @@ class IntentRouter:
         intent = parse.intent
         missing = missing_required_fields(intent)
         if parse.confidence >= self.threshold and not missing:
-            # Confirmation-ready: hand the intent to A5, no reply yet.
-            self.sessions.clear(owner_id)
+            # Confirmation-ready: hold the intent and send the confirmation
+            # prompt (A5) — the owner's YES/NO decides what happens next.
+            self.sessions.set(
+                owner_id, SessionState(branch="confirm", pending_intent=intent)
+            )
             return RouteOutcome(
-                branch="confirm", intent=intent, reason="confirmation_ready"
+                branch="confirm",
+                intent=intent,
+                reply_text=compose_confirmation(intent),
+                reason="confirmation_ready",
             )
 
         if missing:

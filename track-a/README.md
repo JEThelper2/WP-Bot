@@ -38,7 +38,7 @@ milestone scope:
     tunable constant) and all fields required for that content_type/action
     are present (mirrors the contract: job/announcement need title+
     description/body on `create`; business_info is always partial; image
-    needs slot + media unless delete). A5 takes over from here.
+    needs slot + media unless delete).
   - `clarify` — below threshold or missing fields. One *targeted* question
     ("What's the job title?", not "can you clarify"). The owner's reply
     re-enters parsing with the prior exchange as LLM context
@@ -49,17 +49,36 @@ milestone scope:
     to the `escalation_requests` table (PRD §10), reviewable via
     `GET /escalations`. No matching logic — a human picks these up.
 
+- **Outbound messaging (A5)** — `track_a.composer` turns a validated,
+  ready intent into a plain-language confirmation that always ends with an
+  explicit YES/NO instruction; `track_a.reply.WhatsAppReplySender` sends it
+  via the Graph API (`POST /{version}/{phone_number_id}/messages`,
+  Bearer token; falls back to logging when unconfigured). The router's
+  confirmation exchange handles the reply:
+  - **YES** → submit the intent to Track B (the A1 stub for now) and reply
+    per the result object: `success` → completion with the result's
+    `live_url` ("You can undo this within 24h by replying UNDO"); `failed`
+    → plain-language error using `error_message` (or a generic text) —
+    never a silent failure or a false "done"; `needs_confirmation` →
+    re-send the confirmation prompt defensively.
+  - **NO** → "Okay, cancelled — nothing was changed." — the pending
+    intent is discarded and **no write call is ever made**.
+  - After a failed publish the pending intent is kept so a follow-up YES
+    retries and a NO cancels.
+
 **Not built yet (next milestone):** wiring the webhook through this whole
-pipeline (transcribe -> parse -> route -> submit to Track B), real replies
-(A5).
+pipeline (transcribe -> parse -> route -> send -> YES/NO -> Track B). All
+the pieces exist (`app.state.router`); only the webhook still runs the
+transcribe/normalize step.
 
 ## Configuration (env vars)
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `WHATSAPP_VERIFY_TOKEN` | `wp-bot-dev-verify-token` | Token Meta must send in the verification handshake. |
-| `WHATSAPP_API_TOKEN` | *(empty)* | System-user access token for the WhatsApp Media API (voice-note download). |
-| `WHATSAPP_GRAPH_API_VERSION` | `v21.0` | Graph API version for media + (later) send calls. |
+| `WHATSAPP_API_TOKEN` | *(empty)* | System-user access token for the WhatsApp Media + Messages API. |
+| `WHATSAPP_PHONE_NUMBER_ID` | *(empty)* | Business phone number id used for outbound messages. |
+| `WHATSAPP_GRAPH_API_VERSION` | `v21.0` | Graph API version for media + send calls. |
 | `OPENAI_API_KEY` | *(empty)* | Key for the LLM intent parser (`OpenAILLMClient`). |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model used by the intent parser. |
 | `TRACK_B_URL` | `http://127.0.0.1:8200` | Where Track B (stub) lives. |
