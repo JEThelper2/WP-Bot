@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/justicethinker/WP-Bot/main/shared-contract/result.schema.json",
+  "title": "WP-Bot Result Object",
+  "description": "A result object: what Track B (WordPress site/state service) sends back to Track A (WhatsApp conversation service). The other half of the only coupling point between the two services. Do not change without bumping contract_version and updating both tracks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "status",
+    "change_id"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0.0",
+      "description": "Semantic version of this contract. Both services must send and accept the same value; a mismatch is a hard error (see README)."
+    },
+    "status": {
+      "enum": ["success", "failed", "needs_confirmation"],
+      "description": "success = change applied; failed = could not apply (see error_message); needs_confirmation = Track B needs the owner to confirm before applying (ambiguous request, low confidence, or irreversible change)."
+    },
+    "change_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable id Track B assigns to this change. Track A uses it to refer back to the change in follow-up messages and confirmations."
+    },
+    "before": {
+      "type": ["object", "null"],
+      "description": "Previous state of the content, if any (null for create)."
+    },
+    "after": {
+      "type": ["object", "null"],
+      "description": "New state of the content, if any (null for delete)."
+    },
+    "live_url": {
+      "type": ["string", "null"],
+      "description": "URL where the change is live on the site, when applicable (null otherwise)."
+    },
+    "error_message": {
+      "type": ["string", "null"],
+      "description": "Human-readable error message when status = failed; must be null for success."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "failed" } }
+      },
+      "then": {
+        "required": ["error_message"],
+        "properties": {
+          "error_message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "success" } }
+      },
+      "then": {
+        "properties": {
+          "error_message": { "const": null }
+        }
+      }
+    }
+  ]
+}
