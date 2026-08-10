@@ -1,0 +1,25 @@
+# WP-Bot Track A — WhatsApp conversation service.
+#
+# Build context is the REPO ROOT (shared-contract + track-a must both be
+# present). Voice transcription (faster-whisper) is optional; enable it
+# with `--build-arg WITH_TRANSCRIBE=1` (see deploy/README.md).
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY shared-contract ./shared-contract
+COPY track-a ./track-a
+
+# LLM intent parsing by default; transcribe is opt-in (heavy model deps).
+RUN pip install --no-cache-dir ./shared-contract \
+ && pip install --no-cache-dir "./track-a[llm]"
+
+ARG WITH_TRANSCRIBE=0
+RUN if [ "$WITH_TRANSCRIBE" = "1" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+        && rm -rf /var/lib/apt/lists/* \
+        && pip install --no-cache-dir "./track-a[transcribe]"; \
+    fi
+
+EXPOSE 8000
+CMD ["uvicorn", "track_a.main:app", "--host", "0.0.0.0", "--port", "8000"]

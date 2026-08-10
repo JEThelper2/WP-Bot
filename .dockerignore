@@ -1,0 +1,11 @@
+# Build contexts are the repo root (shared-contract + track-a + track-b),
+# so keep local/runtime artifacts out of the images.
+.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/data
+track-b/wp-sandbox/_output
+.git
+.gitignore
+run.md

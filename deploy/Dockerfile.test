@@ -1,0 +1,18 @@
+# WP-Bot test runner — the full suite (unit + integration), including the
+# Docker-gated suites, run inside the compose stack against the real
+# WordPress sandbox and Postgres.
+#
+# Build context is the REPO ROOT. Only pytest-related extras are needed:
+# the voice tests use the stub transcriber, so no faster-whisper here.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install --no-cache-dir ./shared-contract \
+ && pip install --no-cache-dir \
+        "./track-a[llm,dev]" \
+        "./track-b[postgres,dev]"
+
+CMD ["pytest", "-q"]
