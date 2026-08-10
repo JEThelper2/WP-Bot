@@ -7,9 +7,28 @@ Two parts:
    contract-valid success result, so Track A's full conversation flow is
    testable end-to-end before Track B becomes real.
 2. The **WordPress REST API client** (`track_b.wordpress.WordPressClient`)
-   — the real thing Track B will use to apply intents to a site. This
-   milestone (B1) delivers the client, its tests, and the sandbox used to
-   run them.
+   — the real thing Track B will use to apply intents to a site (B1),
+   fronted by the **allowlist gate** (`track_b.allowlist`, B2) that no
+   intent can bypass. The sandbox used to test the client lives in
+   `wp-sandbox/`.
+
+## Allowlist gate (B2) — the PRD guardrail in code
+
+No intent reaches the WordPress client without passing, in order:
+
+1. `validate_intent()` against `shared-contract/intent.schema.json` —
+   Track A's validation is never trusted;
+2. the site's allowlist config (`track_b.allowlist.SiteConfig`, currently
+   a hardcoded `PILOT_SITE_CONFIG` for the demo site, structured to become
+   per-site config later): the content_type must be **enabled** for the
+   site, and every field must be in that content type's **field mapping**;
+3. only then does `apply_intent()` dispatch to the WordPress client
+   (create/update/delete by title, business_info option, image upload).
+
+Any rejection is a contract-valid result object with
+`status: "failed"` and a clear `error_message` — never an exception, and
+**never a WordPress write**. The pilot config enables job, announcement,
+and business_info; image (v1.5) ships disabled.
 
 ## ⚠️ Security guardrail: Editor-level user + application passwords (REQUIRED)
 
@@ -74,6 +93,7 @@ result object's `before`/`after` need. Nothing returns bare success/fail.
 | `create_post(content_type, fields)` | `job`/`announcement`. Uses the custom post type `jobs` when the site registers one, otherwise a standard post assigned to the `jobs`/`announcements` category (PRD §6). `before` is `None`. |
 | `update_post(post_id, fields)` | Partial update; fetches the current state first so `before` is real. |
 | `delete_post(post_id)` | Trashes the post (recoverable; leaves the live site immediately). |
+| `find_post_by_title(content_type, title)` | Resolves a post id by exact title match — how update/delete intents (which carry no post id in the contract) find their target. |
 | `update_site_option(fields)` | business_info singleton via the mu-plugin route (see guardrail above). |
 | `upload_and_replace_image(slot, media)` | **v1.5, optional for MVP.** Uploads to the Media Library, never deletes the previous image, and points the slot at the new URL (slot must be in the allowlist in `track_b.config`). |
 

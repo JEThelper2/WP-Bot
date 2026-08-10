@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -211,6 +212,24 @@ class WordPressClient:
         if resp is not None and "jobs" in resp.json():
             return "jobs"
         return "posts"
+
+    async def find_post_by_title(
+        self, content_type: str, title: str
+    ) -> int | None:
+        """Resolve a post id by exact title match (used by update/delete)."""
+        post_type = await self._resolve_post_type(content_type)
+        resp = await self._request(
+            "GET",
+            f"/wp-json/wp/v2/{post_type}?search={quote(title)}&per_page=50",
+        )
+        wanted = title.strip().lower()
+        for post in resp.json():
+            t = post.get("title", {}).get("raw") or post.get("title", {}).get(
+                "rendered"
+            )
+            if t and t.strip().lower() == wanted:
+                return int(post["id"])
+        return None
 
     async def _ensure_category(self, content_type: str) -> int:
         """Get-or-create the 'jobs'/'announcements' category; return its id."""
