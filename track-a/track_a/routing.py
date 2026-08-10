@@ -258,6 +258,7 @@ class IntentRouter:
         log_escalation: Callable[[str, str], None] | None = None,
         sender: Any = None,
         trackb: TrackBClient | Any = None,
+        onboarding: Any = None,
     ) -> None:
         self.parser = parser or IntentParser()
         self.sessions = sessions or SessionStore()
@@ -265,11 +266,27 @@ class IntentRouter:
         self.log_escalation = log_escalation or (lambda owner, msg: None)
         self.sender = sender or ReplySender()
         self.trackb = trackb or TrackBClient(base_url="http://127.0.0.1:8200")
+        # PRD §12: the owner-facing onboarding conversation (or None to
+        # disable). Onboarding messages are intercepted BEFORE intent
+        # parsing so a URL or application password is never parsed as a
+        # content request.
+        self.onboarding = onboarding
 
     async def handle_message(self, owner_id: str, message_text: str) -> RouteOutcome:
         """Route one owner message to exactly one branch; send any reply."""
         message_text = (message_text or "").strip()
         state = self.sessions.get(owner_id)
+
+        # --- onboarding (PRD §12): an active walkthrough always wins, and
+        # a fresh trigger starts one — but never hijack a message while a
+        # confirmation/escalation decision is pending. ---
+        if self.onboarding is not None and (
+            self.onboarding.is_active(owner_id)
+            or (state is None and self.onboarding.is_trigger(message_text))
+        ):
+            outcome = await self.onboarding.handle(owner_id, message_text)
+            if outcome is not None:
+                return await self._send(owner_id, outcome)
 
         # --- UNDO command (promised in the completion message). Only when
         # no confirmation/escalation decision is pending. ---

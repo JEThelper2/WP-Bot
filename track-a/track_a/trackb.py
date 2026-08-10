@@ -100,3 +100,50 @@ class TrackBClient:
                 f"Track B returned a result that fails the contract: {exc}"
             ) from exc
         return result
+
+    async def onboard_site(
+        self,
+        *,
+        site_url: str,
+        username: str,
+        app_password: str,
+        owner_id: str,
+    ) -> dict[str, Any]:
+        """Submit a site for onboarding validation (PRD §12 / B5).
+
+        The onboarding endpoint is not a contract result endpoint, so the
+        response is normalized here instead: on success Track B answers
+        HTTP 200 with `{status, reason, site_id, site_url}`; on failure it
+        answers HTTP 422 with the specific `reason` in the detail body.
+        Either way the caller gets a single dict with `status`
+        ("success" | "failed"), `reason`, `message`, and `site_id`.
+        """
+        resp = await self._client.post(
+            f"{self.base_url}/sites/onboard",
+            json={
+                "site_url": site_url,
+                "username": username,
+                "app_password": app_password,
+                "owner_id": owner_id,
+            },
+            timeout=30.0,
+        )
+        if resp.status_code == 200:
+            body = resp.json()
+            return {
+                "status": "success",
+                "reason": body.get("reason"),
+                "message": body.get("message", ""),
+                "site_id": body.get("site_id"),
+                "site_url": body.get("site_url"),
+            }
+        if resp.status_code == 422:
+            detail = resp.json().get("detail", {}) or {}
+            return {
+                "status": "failed",
+                "reason": detail.get("reason"),
+                "message": detail.get("message", ""),
+                "site_id": None,
+                "site_url": None,
+            }
+        resp.raise_for_status()

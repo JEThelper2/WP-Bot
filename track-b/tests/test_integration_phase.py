@@ -19,43 +19,23 @@ Four core flows are exercised end to end:
 The WordPress layer is the same in-memory `FakeWordPress` the B1/B2 suites
 use (the real-WordPress sandbox runs where Docker exists — see
 track-b/wp-sandbox). The parser is scripted (A3's LLM is a pluggable
-seam); everything downstream of it is the real code.
+seam); everything downstream of it is the real code. The onboarding flow
+is wired in too (as in production) but none of these messages are
+onboarding triggers.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
-import httpx
-import pytest
-from fastapi.testclient import TestClient
 from shared_contract import CONTRACT_VERSION
 
-from track_a.config import Settings as ASettings
+from track_a.composer import compose_completion, compose_confirmation
 from track_a.intent import IntentParseResult
-from track_a.main import create_app as create_track_a_app
-from track_a.pipeline import MessageProcessor
 from track_a.routing import (
     ESCALATION_CONFIRM_REPLY,
     ESCALATION_REPLY_TEXT,
-    IntentRouter,
 )
-from track_a.store import init_db as track_a_init_db, log_escalation_request
-from track_a.trackb import TrackBClient
 
-from track_b.allowlist import PILOT_SITE_CONFIG
-from track_b.changelog import InMemoryChangeLog
-from track_b.config import Settings as BSettings
-from track_b.main import TrackBServices, create_app as create_track_b_app
-from track_b.onboarding import OnboardedSiteStore
-from track_b.pending import InMemoryPendingStore
-from track_b.wordpress import WordPressClient
-
-from wp_fake import SITE, FakeWordPress
-
-OWNER = "15551234567"
-VERIFY_TOKEN = "integration-verify-token"
+from integration_harness import OWNER, build_world, most_recent, send
 
 JOB_INTENT = {
     "contract_version": CONTRACT_VERSION,
@@ -67,165 +47,16 @@ JOB_INTENT = {
 }
 
 
-# ------------------------------------------------------------------ doubles
-
-
-class RecordingSender:
-    def __init__(self) -> None:
-        self.sent: list[tuple[str, str]] = []
-
-    async def send(self, to: str, text: str) -> None:
-        self.sent.append((to, text))
-
-
-class NoopMedia:
-    async def download_media(self, media_ref: str):
-        raise AssertionError("no media downloads expected in text-only flows")
-
-
-class NoopTranscriber:
-    async def transcribe(self, payload):
-        raise AssertionError("no transcription expected in text-only flows")
-
-
-class ScriptedParser:
-    def __init__(self, *results: IntentParseResult) -> None:
-        self.results = list(results)
-        self.calls: list[dict] = []
-
-    async def parse(self, message_text: str, owner_id: str, *, context=None):
-        self.calls.append({"text": message_text, "context": context})
-        return self.results.pop(0)
-
-
 def parse_intent(intent: dict) -> IntentParseResult:
     return IntentParseResult(
         status="intent", intent=intent, confidence=intent["confidence"]
     )
 
 
-@dataclass
-class World:
-    client: TestClient
-    fake_wp: FakeWordPress
-    sender: RecordingSender
-    db: Path
-    services: TrackBServices
-    router: IntentRouter
-
-
-def build_world(tmp_path: Path, *parse_results: IntentParseResult) -> World:
-    """Both real apps over ASGI transports, wired exactly like production."""
-    # ---- Track B: real API, in-memory stores, fake WordPress ----
-    fake = FakeWordPress(expected_auth=("editor", "app-pass"))
-    sites = OnboardedSiteStore(tmp_path / "sites.db")
-    sites.add_site(
-        owner_id=OWNER,
-        site_url=SITE,
-        username="editor",
-        app_password="app-pass",
-        allowlist=PILOT_SITE_CONFIG,
-    )
-
-    def make_client(site):
-        return WordPressClient(
-            site.site_url,
-            "editor",
-            "app-pass",
-            client=httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)),
-        )
-
-    services = TrackBServices(
-        sites=sites,
-        pending=InMemoryPendingStore(),
-        changelog=InMemoryChangeLog(),
-        make_client=make_client,
-    )
-    track_b_app = create_track_b_app(
-        settings=BSettings(db_path=tmp_path / "trackb.db"),
-        services=services,
-    )
-    track_b_http = httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=track_b_app), base_url="http://track-b"
-    )
-
-    # ---- Track A: real webhook + router pointed at real Track B ----
-    db = tmp_path / "inbound.db"
-    track_a_init_db(db)
-    sender = RecordingSender()
-    trackb = TrackBClient(base_url="http://track-b", client=track_b_http)
-    router = IntentRouter(
-        parser=ScriptedParser(*parse_results),
-        sender=sender,
-        trackb=trackb,
-        log_escalation=lambda owner, msg: log_escalation_request(db, owner, msg),
-    )
-    processor = MessageProcessor(
-        db_path=db,
-        media_client=NoopMedia(),
-        transcriber=NoopTranscriber(),
-        sender=sender,
-    )
-    track_a_app = create_track_a_app(
-        settings=ASettings(
-            verify_token=VERIFY_TOKEN,
-            track_b_url="http://track-b",
-            db_path=db,
-        ),
-        processor=processor,
-        router=router,
-    )
-    return World(
-        client=TestClient(track_a_app),
-        fake_wp=fake,
-        sender=sender,
-        db=db,
-        services=services,
-        router=router,
-    )
-
-
-def send(client: TestClient, text: str, wam_id: str, owner: str = OWNER):
-    """POST a real Meta-format webhook payload for one text message."""
-    payload = {
-        "object": "whatsapp_business_account",
-        "entry": [
-            {
-                "id": "WABA_ID",
-                "changes": [
-                    {
-                        "value": {
-                            "messaging_product": "whatsapp",
-                            "metadata": {
-                                "display_phone_number": "16505551111",
-                                "phone_number_id": "PHONE_NUMBER_ID",
-                            },
-                            "contacts": [{"profile": {"name": "Owner"}, "wa_id": owner}],
-                            "messages": [
-                                {
-                                    "from": owner,
-                                    "id": wam_id,
-                                    "timestamp": "1700000000",
-                                    "text": {"body": text},
-                                    "type": "text",
-                                }
-                            ],
-                        },
-                        "field": "messages",
-                    }
-                ],
-            }
-        ],
-    }
-    return client.post("/webhook", json=payload)
-
-
 # ------------------------------------------------------------- publish flow
 
 
 def test_publish_flow_end_to_end(tmp_path):
-    from track_a.composer import compose_completion, compose_confirmation
-
     world = build_world(tmp_path, parse_intent(dict(JOB_INTENT)))
 
     resp = send(world.client, "post a job for a barista downtown", "wamid.publish.1")
@@ -247,25 +78,17 @@ def test_publish_flow_end_to_end(tmp_path):
 
     # The write is on the audit trail (PRD §11), with the staged change_id.
     assert len(world.services.changelog) == 1
-    row = await_most_recent(world)
+    row = most_recent(world)
     assert row.content_type == "job"
     assert row.action == "create"
     assert row.before is None
     assert row.after["title"] == "Part-time Barista"
 
 
-def await_most_recent(world: World):
-    import asyncio
-
-    return asyncio.run(world.services.changelog.most_recent(OWNER))
-
-
 # --------------------------------------------------------------- undo flow
 
 
 def test_undo_flow_end_to_end(tmp_path):
-    from track_a.composer import compose_confirmation
-
     world = build_world(tmp_path, parse_intent(dict(JOB_INTENT)))
 
     send(world.client, "post a job for a barista downtown", "wamid.undo.1")
@@ -283,7 +106,7 @@ def test_undo_flow_end_to_end(tmp_path):
 
     # The undo itself is logged (undo is undoable; trail complete).
     assert len(world.services.changelog) == 2
-    undo_row = await_most_recent(world)
+    undo_row = most_recent(world)
     assert undo_row.action == "undo"
     assert undo_row.undo_of is not None
 
@@ -301,8 +124,6 @@ def test_undo_with_nothing_to_undo_gets_clear_reply(tmp_path):
 
 
 def test_clarification_loop_end_to_end(tmp_path):
-    from track_a.composer import compose_confirmation
-
     incomplete = dict(JOB_INTENT)
     incomplete["fields"] = {"description": "cash handling"}
     resolved = dict(JOB_INTENT)

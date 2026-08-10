@@ -81,6 +81,21 @@ milestone scope:
   boundary. End-to-end tests for all four flows (publish, undo,
   clarification loop, escalation) live in `track-b/tests/test_integration_phase.py`.
 
+- **Onboarding (PRD §12)** — the owner can go from nothing to "system
+  active" by messaging: `track_a.onboarding.OnboardingFlow` intercepts
+  onboarding messages (trigger words like "set up my website", or an
+  in-progress walkthrough) before intent parsing ever sees them. Guided
+  steps: site URL → WordPress username (Editor role) → application
+  password, then the B5 `/sites/onboard` endpoint is called. Success
+  replies with example phrasings for the three content types; each
+  failure reason (invalid URL / unreachable / not WordPress / invalid
+  credentials / insufficient permissions) gets its own plain-language
+  message and the owner only re-sends the piece that was wrong. The
+  walkthrough is static instructional text (v1; a video is post-feedback
+  per PRD §17). Conversation e2e lives in
+  `track-b/tests/test_onboarding_flow.py`, and the real-sandbox variant
+  in `track-b/tests/test_onboarding_sandbox.py`.
+
 ## Configuration (env vars)
 
 | Variable | Default | Purpose |

@@ -62,6 +62,15 @@ confidence would require mutating the site during onboarding, which v1
 avoids. A failed onboarding persists nothing, and the password never
 reaches disk in plaintext or a log.
 
+The **owner-facing conversation** that drives this endpoint lives in
+Track A (`track_a.onboarding.OnboardingFlow`): trigger → site URL →
+username → application password, then the B5 call; each failure reason
+is relayed back in plain language and the owner only re-sends the piece
+that was wrong. Conversation e2e (hermetic fake WordPress) is
+`track-b/tests/test_onboarding_flow.py`; the real-sandbox variant is
+`track-b/tests/test_onboarding_sandbox.py` (same env vars as
+`test_integration_wp.py`).
+
 ## Change log + undo (PRD §11)
 
 Every successful write logs a row to **Postgres** (`change_log` via

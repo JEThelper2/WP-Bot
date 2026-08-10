@@ -33,6 +33,7 @@ from fastapi.responses import PlainTextResponse
 
 from .config import Settings
 from .media import WhatsAppMediaClient
+from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
 from .reply import ReplySender, WhatsAppReplySender
 from .routing import IntentRouter
@@ -83,9 +84,11 @@ def create_app(
         )
 
     if router is None:
+        trackb = TrackBClient(base_url=settings.track_b_url)
         router = IntentRouter(
             sender=sender,
-            trackb=TrackBClient(base_url=settings.track_b_url),
+            trackb=trackb,
+            onboarding=OnboardingFlow(trackb=trackb),
             log_escalation=lambda owner, msg: log_escalation_request(
                 settings.db_path, owner, msg
             ),
