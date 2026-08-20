@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS escalation_requests (
     owner_phone      TEXT NOT NULL,
     original_message TEXT,
     created_at       TEXT NOT NULL,
-    status           TEXT NOT NULL DEFAULT 'new'
+    status           TEXT NOT NULL DEFAULT 'new',
+    notes            TEXT,
+    updated_at       TEXT
 );
 """
 
@@ -70,6 +72,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
             "ALTER TABLE inbound_messages "
             "ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'new'"
         )
+    # Escalation requests migrations
+    esc_cols = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(escalation_requests)")
+    }
+    if "notes" not in esc_cols:
+        conn.execute("ALTER TABLE escalation_requests ADD COLUMN notes TEXT")
+    if "updated_at" not in esc_cols:
+        conn.execute("ALTER TABLE escalation_requests ADD COLUMN updated_at TEXT")
 
 
 def init_db(db_path: Path) -> None:
@@ -202,6 +213,54 @@ def count_escalation_requests(db_path: Path) -> int:
     with _connect(db_path) as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM escalation_requests").fetchone()
     return int(row["n"])
+
+
+def count_open_escalations(db_path: Path) -> int:
+    """Count escalations with status 'new' (neither in_progress nor resolved)."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM escalation_requests WHERE status = 'new'"
+        ).fetchone()
+    return int(row["n"])
+
+
+def get_escalation_request(db_path: Path, row_id: int) -> dict | None:
+    """Fetch a single escalation request by id."""
+    with _connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM escalation_requests WHERE id = ?", (row_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_escalation_status(
+    db_path: Path,
+    row_id: int,
+    *,
+    status: str,
+    notes: str | None = None,
+) -> bool:
+    """Update an escalation request's status and optional notes.
+
+    Returns True if the row existed and was updated.
+    """
+    updated_at = datetime.now(timezone.utc).isoformat()
+    with _connect(db_path) as conn:
+        if notes is not None:
+            cur = conn.execute(
+                "UPDATE escalation_requests "
+                "SET status = ?, notes = ?, updated_at = ? "
+                "WHERE id = ?",
+                (status, notes, updated_at, row_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE escalation_requests "
+                "SET status = ?, updated_at = ? "
+                "WHERE id = ?",
+                (status, updated_at, row_id),
+            )
+        return cur.rowcount > 0
 
 
 def _content_json(obj: object) -> str:
