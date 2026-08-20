@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WP-Bot — Update Your Website by WhatsApp</title>
+  <meta name="description" content="Update your WordPress website by sending a WhatsApp message. No dashboard, no login, no technical skills needed.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">W</div>
+      WP-Bot
+    </div>
+    <nav class="nav-links">
+      <a href="#how-it-works">How It Works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="onboarding.html">Get Started</a>
+    </nav>
+  </div>
+</header>
+
+<!-- Ambient floating shapes (subtle background motion) -->
+<div class="ambient-shapes" aria-hidden="true">
+  <div class="ambient-shape"></div>
+  <div class="ambient-shape"></div>
+  <div class="ambient-shape"></div>
+</div>
+
+<!-- Hero -->
+<section class="hero" data-parallax>
+  <div class="container">
+    <h1 class="reveal">Text your website like you'd text an assistant</h1>
+    <p class="subtitle reveal reveal-delay-1">
+      No dashboard. No login. No technical skills. Just send a WhatsApp message and your WordPress site updates itself.
+    </p>
+    <a href="onboarding.html" class="hero-cta reveal reveal-delay-2">Connect Your Website →</a>
+
+    <!-- Phone mockup with animated chat -->
+    <div class="phone-mockup reveal reveal-delay-3">
+      <div class="phone-screen">
+        <div class="phone-header">💬 WP-Bot</div>
+        <div class="phone-messages" id="chat-mockup">
+          <!-- Messages injected by JS for animated sequence -->
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section id="how-it-works">
+  <div class="container">
+    <h2 class="section-title reveal">How It Works</h2>
+    <p class="section-subtitle reveal reveal-delay-1">Three steps from "never heard of this" to "my website is updated."</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Connect your WordPress site</h3>
+          <p>Send "set up my website" to our WhatsApp number. We'll walk you through creating a WordPress application password — a safe, limited-access credential that can't change your site settings.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Text what you want to change</h3>
+          <p>Type a message describing what you need — just like you'd tell a staff member. "Post a job", "Update our hours", "Add an announcement about the holiday" — we understand plain English.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Confirm and it's live</h3>
+          <p>We'll show you exactly what will be published and ask for a quick YES. That's it — your site is updated. Made a mistake? Reply UNDO within 24 hours to reverse it instantly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- What You Can Do -->
+<section style="background: var(--white);">
+  <div class="container">
+    <h2 class="section-title reveal">What You Can Do</h2>
+    <p class="section-subtitle reveal reveal-delay-1">Real actions that work today — no overselling, no "coming soon."</p>
+
+    <div class="features">
+      <div class="feature reveal reveal-delay-1">
+        <div class="feature-icon">📋</div>
+        <h3>Post Jobs</h3>
+        <p>Share job openings with title, description, location, and pay. Posts to your site's jobs page automatically.</p>
+      </div>
+      <div class="feature reveal reveal-delay-2">
+        <div class="feature-icon">📢</div>
+        <h3>Post Announcements</h3>
+        <p>Let customers know about holiday hours, special events, closures, or any news. Quick and easy.</p>
+      </div>
+      <div class="feature reveal reveal-delay-3">
+        <div class="feature-icon">ℹ️</div>
+        <h3>Update Business Info</h3>
+        <p>Change your phone number, hours, address, or prices. Partial updates work — just tell us what changed.</p>
+      </div>
+      <div class="feature reveal reveal-delay-4">
+        <div class="feature-icon">🖼️</div>
+        <h3>Replace Images</h3>
+        <p>Send a photo to update your homepage banner, logo, or gallery. Snap and send — done.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Who It's For -->
+<section>
+  <div class="container">
+    <h2 class="section-title reveal">Who It's For</h2>
+    <p class="section-subtitle reveal reveal-delay-1">Built for business owners who have better things to do than figure out WordPress.</p>
+
+    <div class="use-cases">
+      <div class="use-case">
+        <div class="use-case-icon">🍽️</div>
+        <h4>Restaurants & Cafés</h4>
+        <p>Update menus, post specials, announce holiday closures</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-icon">🏥</div>
+        <h4>Clinics & Health</h4>
+        <p>Post job openings, update contact info, share service changes</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-icon">🛍️</div>
+        <h4>Shops & Retail</h4>
+        <p>Announce sales, update prices, post new arrivals</p>
+      </div>
+      <div class="use-case">
+        <div class="use-case-icon">⛪</div>
+        <h4>Churches & Orgs</h4>
+        <p>Share event announcements, update service times, post volunteer needs</p>
+      </div>
+    </div>
+
+    <div class="tip" style="max-width:700px;margin:32px auto 0;">
+      <strong>Perfect for:</strong> Nigerian SME owners with an existing WordPress site who currently pay a developer for every small edit — or let their site go stale because it's too much hassle.
+    </div>
+  </div>
+</section>
+
+<!-- Why Trust This -->
+<section style="background: var(--white);">
+  <div class="container">
+    <h2 class="section-title reveal">Your Site, Your Rules</h2>
+    <p class="section-subtitle reveal reveal-delay-1">We know handing over site access feels risky. Here's what we do to keep you safe.</p>
+
+    <div class="guardrails">
+      <div class="guardrail reveal">
+        <div class="guardrail-check">✓</div>
+        <div class="guardrail-text">
+          <h4>Confirm before every publish</h4>
+          <p>Nothing goes live without your explicit YES. You see exactly what will be published before it happens.</p>
+        </div>
+      </div>
+      <div class="guardrail reveal reveal-delay-1">
+        <div class="guardrail-check">✓</div>
+        <div class="guardrail-text">
+          <h4>Undo within 24 hours</h4>
+          <p>Made a mistake? Reply UNDO and it's reversed — the change is fully reverted, not just hidden.</p>
+        </div>
+      </div>
+      <div class="guardrail reveal reveal-delay-2">
+        <div class="guardrail-check">✓</div>
+        <div class="guardrail-text">
+          <h4>Editor access only — never Admin</h4>
+          <p>We use a dedicated WordPress user with limited Editor permissions. We can't change your settings, install plugins, or touch your users.</p>
+        </div>
+      </div>
+      <div class="guardrail">
+        <div class="guardrail-check">✓</div>
+        <div class="guardrail-text">
+          <h4>No permanent deletes</h4>
+          <p>When we remove a post, it goes to WordPress Trash — fully recoverable from your WordPress admin if needed.</p>
+        </div>
+      </div>
+      <div class="guardrail">
+        <div class="guardrail-check">✓</div>
+        <div class="guardrail-text">
+          <h4>Passwords encrypted, never logged</h4>
+          <p>Your application password is encrypted at rest and never appears in any log or error message.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing">
+  <div class="container">
+    <h2 class="section-title reveal">Simple, Honest Pricing</h2>
+    <p class="section-subtitle reveal reveal-delay-1">Unlimited updates for one flat monthly fee. No per-edit charges, no surprises.</p>
+
+    <div class="pricing-cards">        <div class="pricing-card reveal">
+        <div class="badge">Most Popular</div>
+        <h3>WP-Bot Monthly</h3>
+        <div class="price"><span class="counter-value" data-target="5000" data-prefix="₦">₦0</span><span style="font-size:0.5em;font-weight:400;">/month</span></div>
+        <div class="price-sub">Unlimited updates. Cancel anytime.</div>
+        <ul>
+          <li>Unlimited job postings</li>
+          <li>Unlimited announcements</li>
+          <li>Unlimited business info updates</li>
+          <li>Image replacements</li>
+          <li>24-hour undo on every change</li>
+          <li>WhatsApp support</li>
+        </ul>
+        <a href="onboarding.html" class="pricing-cta">Get Started</a>
+      </div>
+    </div>
+
+    <div class="tip" style="max-width:500px;margin:24px auto 0;">
+      <strong>Why not per-edit pricing?</strong> Because the whole point is that you shouldn't have to think about cost every time you need a simple update. One flat fee means you'll actually keep your site fresh.
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <h2>Ready to update your site from your phone?</h2>
+    <p>Connect your WordPress website in under 5 minutes. No technical skills needed.</p>
+    <a href="onboarding.html" class="cta-btn">Start Setup →</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <p>WP-Bot &copy; 2026 &middot; <a href="onboarding.html">Setup Guide</a> &middot; Built for WordPress site owners who'd rather text than log in.</p>
+  </div>
+</footer>
+
+<!-- Animation JS — lightweight, no dependencies -->
+<script>
+(function() {
+  'use strict';
+
+  // --- Scroll-triggered reveals via IntersectionObserver ---
+  const revealObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(function(el) {
+    revealObserver.observe(el);
+  });
+
+  // --- Animated counter ---
+  var counterObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        animateCounter(entry.target);
+        counterObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('.counter-value').forEach(function(el) {
+    counterObserver.observe(el);
+  });
+
+  function animateCounter(el) {
+    var target = parseInt(el.getAttribute('data-target'), 10);
+    var prefix = el.getAttribute('data-prefix') || '';
+    var duration = 1200;
+    var start = performance.now();
+    function step(now) {
+      var progress = Math.min((now - start) / duration, 1);
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var current = Math.round(eased * target);
+      el.textContent = prefix + current.toLocaleString();
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // --- Animated chat mockup ---
+  var chatMessages = [
+    { type: 'in',  text: 'Hey! Send me a message to update your website. Try: "Post a job"' },
+    { type: 'out', text: 'Post a job: Part-time barista, $18/hr, downtown location' },
+    { typing: true },
+    { type: 'in',  text: "Post job: 'Part-time Barista' — $18/hr, downtown. Reply YES to publish, NO to cancel." },
+    { type: 'out', text: 'YES' },
+    { typing: true },
+    { type: 'in',  text: 'Done! Your job is live: <a href="#" style="color:var(--green);font-weight:600;">example.com/jobs/part-time-barista</a><br><span class="msg-time">Undo available for 24h — reply UNDO</span>' }
+  ];
+
+  var chatEl = document.getElementById('chat-mockup');
+  if (!chatEl) return;
+
+  var chatIndex = 0;
+  var chatStarted = false;
+
+  // Create typing indicator element
+  var typingEl = document.createElement('div');
+  typingEl.className = 'typing-indicator';
+  typingEl.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+
+  function showNextMessage() {
+    if (chatIndex >= chatMessages.length) {
+      // Loop: clear and restart after delay
+      setTimeout(function() {
+        chatEl.innerHTML = '';
+        chatIndex = 0;
+        setTimeout(showNextMessage, 800);
+      }, 4000);
+      return;
+    }
+
+    var msg = chatMessages[chatIndex];
+    chatIndex++;
+
+    if (msg.typing) {
+      // Show typing indicator
+      chatEl.appendChild(typingEl);
+      typingEl.classList.add('show');
+      chatEl.scrollTop = chatEl.scrollHeight;
+      setTimeout(showNextMessage, 1200 + Math.random() * 400);
+      return;
+    }
+
+    // Remove typing indicator if present
+    typingEl.classList.remove('show');
+    if (typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+
+    // Create message element
+    var div = document.createElement('div');
+    div.className = 'msg ' + (msg.type === 'out' ? 'msg-out' : 'msg-in');
+    div.innerHTML = msg.text;
+    chatEl.appendChild(div);
+
+    // Trigger animation
+    requestAnimationFrame(function() {
+      div.classList.add('show');
+      chatEl.scrollTop = chatEl.scrollHeight;
+    });
+
+    var delay = msg.type === 'out' ? 1500 : 800 + Math.random() * 600;
+    setTimeout(showNextMessage, delay);
+  }
+
+  // Start chat animation when phone mockup is in view
+  var phoneObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting && !chatStarted) {
+        chatStarted = true;
+        setTimeout(showNextMessage, 600);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  var phoneEl = document.querySelector('.phone-mockup');
+  if (phoneEl) phoneObserver.observe(phoneEl);
+
+  // --- Subtle parallax on hero section ---
+  var heroEl = document.querySelector('[data-parallax]');
+  if (heroEl) {
+    var ticking = false;
+    window.addEventListener('scroll', function() {
+      if (!ticking) {
+        requestAnimationFrame(function() {
+          var scrolled = window.pageYOffset;
+          // Only apply while hero is in view, max 60px shift
+          if (scrolled < 800) {
+            var shift = Math.min(scrolled * 0.15, 60);
+            heroEl.style.transform = 'translateY(' + shift + 'px)';
+            heroEl.style.opacity = 1 - (scrolled / 900);
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
+  }
+
+})();
+</script>
+
+</body>
+</html>
