@@ -484,28 +484,207 @@ async def sites_view(request: Request) -> HTMLResponse:
         last_str = _escap(str(last)[:19]) if last else '<span class="timestamp">No activity</span>'
         last_action = _badge(act["last_action"]) if act.get("last_action") else ""
 
+        owner = s.get("owner_id", "")
         rows_html += f"""
         <tr>
             <td>{_escap(sid)}</td>
-            <td>{_escap(s.get('owner_id'))}</td>
+            <td>{_escap(owner)}</td>
             <td><a href="{_escap(s.get('site_url'))}" target="_blank">{_escap(s.get('site_url'))}</a></td>
             <td>{_badge(s.get('status', 'unknown'))}</td>
             <td>{last_action} {last_str}</td>
             <td>{_escap(s.get('created_at', '')[:19])}</td>
+            <td><a href="/admin/dashboard/sites/{_escap(owner)}">History →</a></td>
         </tr>"""
 
     if not rows_html:
-        rows_html = '<tr><td colspan="6" class="empty-state">No onboarded sites found.</td></tr>'
+        rows_html = '<tr><td colspan="7" class="empty-state">No onboarded sites found.</td></tr>'
 
     body = f"""
     <table>
         <thead>
-            <tr><th>Site ID</th><th>Owner</th><th>URL</th><th>Status</th><th>Last Activity</th><th>Created</th></tr>
+            <tr><th>Site ID</th><th>Owner</th><th>URL</th><th>Status</th><th>Last Activity</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>{rows_html}</tbody>
     </table>
     """
     return HTMLResponse(content=_page("Onboarded Sites", "sites", body))
+
+
+# -----------------------------------------------------------------------
+# Per-site detail view
+# -----------------------------------------------------------------------
+
+@router.get("/sites/{owner_id}", response_class=HTMLResponse)
+async def site_detail(
+    request: Request,
+    owner_id: str,
+    content_type: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+) -> HTMLResponse:
+    """Full change history for one site (owner), with filters."""
+    _check_auth(request)
+
+    # --- site info ---
+    site: dict | None = None
+    site_stats: dict[str, int] = {"create": 0, "update": 0, "delete": 0, "undo": 0, "failed": 0}
+    total_changes = 0
+    changes: list[dict] = []
+
+    track_b_db = _find_track_b_db(request)
+    if track_b_db:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(track_b_db))
+            conn.row_factory = sqlite3.Row
+
+            row = conn.execute(
+                "SELECT * FROM onboarded_sites WHERE owner_id = ? LIMIT 1",
+                (owner_id,),
+            ).fetchone()
+            if row:
+                site = dict(row)
+
+            # Per-site action counts
+            rows = conn.execute(
+                "SELECT action, COUNT(*) AS n FROM change_log WHERE owner_id = ? GROUP BY action",
+                (owner_id,),
+            ).fetchall()
+            site_stats = {r["action"]: r["n"] for r in rows}
+
+            # Full change history with optional filters
+            query = "SELECT * FROM change_log WHERE owner_id = ?"
+            params: list[Any] = [owner_id]
+            if content_type:
+                query += " AND content_type = ?"
+                params.append(content_type)
+            if action:
+                query += " AND action = ?"
+                params.append(action)
+            if date_from:
+                df = _parse_date(date_from)
+                if df:
+                    query += " AND created_at >= ?"
+                    params.append(df)
+            if date_to:
+                dt = _parse_date(date_to)
+                if dt:
+                    query += " AND created_at <= ?"
+                    params.append(dt + "T23:59:59")
+            query += " ORDER BY created_at DESC LIMIT 500"
+            rows = conn.execute(query, params).fetchall()
+            total_changes = len(rows)
+            for r in rows:
+                d = dict(r)
+                for field in ("before", "after"):
+                    if d.get(field) and isinstance(d[field], str):
+                        try:
+                            d[field] = json.loads(d[field])
+                        except Exception:
+                            pass
+                changes.append(d)
+
+            conn.close()
+        except Exception as exc:
+            logger.warning("Could not read site detail for %s: %s", owner_id, exc)
+
+    # --- site info card ---
+    if site:
+        status_color = _status_color(site.get("status", ""))
+        site_info = f"""
+        <div class="card" style="margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <h2 style="margin:0;">{_escap(site.get('site_url', owner_id))}</h2>
+                <span class="badge" style="background:{status_color};">{_escap(site.get('status', 'unknown'))}</span>
+            </div>
+            <div style="margin-top:8px;color:#666;font-size:0.9em;">
+                <strong>Owner:</strong> {_escap(owner_id)} &nbsp;|&nbsp;
+                <strong>Site ID:</strong> {_escap(site.get('site_id', ''))} &nbsp;|&nbsp;
+                <strong>Created:</strong> {_escap(site.get('created_at', '')[:19])}
+                {'&nbsp;|&nbsp; <a href="' + _escap(site.get('site_url', '')) + '" target="_blank">Open site →</a>' if site.get('site_url') else ''}
+            </div>
+        </div>"""
+    else:
+        site_info = f"""
+        <div class="card" style="margin-bottom:20px;">
+            <h2 style="margin:0;">Owner: {_escap(owner_id)}</h2>
+            <p style="color:#888;">No site record found for this owner.</p>
+        </div>"""
+
+    # --- action stats bar ---
+    stat_cards = ""
+    for act in ["create", "update", "delete", "undo", "failed"]:
+        count = site_stats.get(act, 0)
+        color = _status_color(act)
+        stat_cards += f"""
+        <div class="card" style="text-align:center;">
+            <div class="card-num" style="color:{color};font-size:1.5em;">{count}</div>
+            <div class="card-label">{_escap(act)}</div>
+        </div>"""
+
+    # --- change rows ---
+    rows_html = ""
+    for c in changes:
+        after_summary = ""
+        if c.get("after"):
+            a = c["after"]
+            if isinstance(a, dict):
+                after_summary = _escap(str(a.get("title", a.get("phone", a.get("hours", "")))))[:60]
+        rows_html += f"""
+        <tr>
+            <td><code>{_escap(c.get('change_id', '')[:12])}</code></td>
+            <td>{_badge(c.get('content_type', ''))}</td>
+            <td>{_badge(c.get('action', ''))}</td>
+            <td>{after_summary}</td>
+            <td class="timestamp">{_escap(str(c.get('created_at', ''))[:19])}</td>
+        </tr>"""
+
+    if not rows_html:
+        rows_html = '<tr><td colspan="5" class="empty-state">No changes recorded for this site.</td></tr>'
+
+    # --- filters ---
+    ct_options = "".join(
+        f'<option value="{ct}" {"selected" if content_type == ct else ""}>{ct}</option>'
+        for ct in ["job", "announcement", "business_info", "image"]
+    )
+    action_options = "".join(
+        f'<option value="{a}" {"selected" if action == a else ""}>{a}</option>'
+        for a in ["create", "update", "delete", "undo", "failed"]
+    )
+
+    body = f"""
+    <a href="/admin/dashboard/sites" style="display:inline-block;margin-bottom:16px;color:#3498db;font-weight:500;text-decoration:none;">← Back to Sites</a>
+
+    {site_info}
+
+    <div class="grid" style="margin-bottom:20px;">
+        {stat_cards}
+    </div>
+
+    <h2>Change History ({total_changes})</h2>
+    <form class="filters" method="GET" action="/admin/dashboard/sites/{_escap(owner_id)}">
+        <label>Type:
+            <select name="content_type"><option value="">All</option>{ct_options}</select>
+        </label>
+        <label>Action:
+            <select name="action"><option value="">All</option>{action_options}</select>
+        </label>
+        <label>From: <input type="date" name="date_from" value="{_escap(date_from)}"></label>
+        <label>To: <input type="date" name="date_to" value="{_escap(date_to)}"></label>
+        <button type="submit">Filter</button>
+        <a href="/admin/dashboard/sites/{_escap(owner_id)}" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
+    </form>
+
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Type</th><th>Action</th><th>Summary</th><th>Time</th></tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+    </table>
+    """
+    title = f"Site History: {_escap(owner_id)}"
+    return HTMLResponse(content=_page(title, "sites", body))
 
 
 # -----------------------------------------------------------------------

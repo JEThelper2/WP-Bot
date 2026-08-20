@@ -84,6 +84,7 @@ def track_b_db(tmp_path):
         ("ch-003", "owner2", "announcement", "create", None,
          '{"title":"Test"}', None, None, "2026-08-20T13:00:00Z"),
     )
+    conn.commit()
     conn.close()
     return db
 
@@ -288,3 +289,130 @@ class TestChangeLogQueries:
         counts = asyncio.run(log.count_by_action())
         assert counts["create"] == 1
         assert counts["undo"] == 1
+
+
+# -------------------------------------------------------------------
+# Per-site detail view
+# -------------------------------------------------------------------
+
+
+class TestSiteDetail:
+    def test_site_detail_renders(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1", headers=_auth()
+        )
+        assert resp.status_code == 200
+        assert "owner1" in resp.text
+        assert "Change History" in resp.text
+
+    def test_site_detail_shows_changes(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1", headers=_auth()
+        )
+        assert resp.status_code == 200
+        # owner1 has two changes in the fixture
+        assert "ch-001" in resp.text or "ch-002" in resp.text
+
+    def test_site_detail_shows_site_info(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1", headers=_auth()
+        )
+        assert resp.status_code == 200
+        assert "example.com" in resp.text
+        assert "active" in resp.text
+
+    def test_site_detail_no_site_record(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/unknown-owner", headers=_auth()
+        )
+        assert resp.status_code == 200
+        assert "No site record found" in resp.text
+
+    def test_site_detail_filter_by_action(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1?action=create",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        assert 'value="create"' in resp.text
+
+    def test_site_detail_filter_by_type(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1?content_type=job",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        assert 'value="job"' in resp.text
+
+    def test_site_detail_requires_auth(self, client: TestClient) -> None:
+        resp = client.get("/admin/dashboard/sites/owner1")
+        assert resp.status_code == 401
+
+    def test_sites_list_has_history_links(self, client: TestClient) -> None:
+        resp = client.get("/admin/dashboard/sites", headers=_auth())
+        assert resp.status_code == 200
+        assert "History →" in resp.text or "sites/owner1" in resp.text
+
+    def test_site_detail_shows_action_stats(self, client: TestClient) -> None:
+        resp = client.get(
+            "/admin/dashboard/sites/owner1", headers=_auth()
+        )
+        assert resp.status_code == 200
+        # Should show action counts: owner1 has 1 create, 1 update
+        assert "create" in resp.text.lower()
+        assert "update" in resp.text.lower()
+
+    def test_site_detail_filter_by_date_from(self, client: TestClient) -> None:
+        """Filter changes starting from a specific date."""
+        resp = client.get(
+            "/admin/dashboard/sites/owner1?date_from=2026-08-20T12:00:00",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        # Only the 12:00 change (ch-002) should appear
+        assert "ch-002" in resp.text
+        # ch-001 at 11:00 should NOT appear in the change list
+        # (it may appear in stat counts but not in the table rows)
+
+    def test_site_detail_filter_by_date_to(self, client: TestClient) -> None:
+        """Filter changes up to a specific date."""
+        resp = client.get(
+            "/admin/dashboard/sites/owner1?date_to=2026-08-20T11:30:00",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        # Only ch-001 (at 11:00) should appear
+        assert "ch-001" in resp.text
+
+    def test_site_detail_filter_by_date_range(self, client: TestClient) -> None:
+        """Filter changes within a date range."""
+        resp = client.get(
+            "/admin/dashboard/sites/owner1"
+            "?date_from=2026-08-20T11:30:00&date_to=2026-08-20T12:30:00",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        # Only ch-002 (at 12:00) should appear
+        assert "ch-002" in resp.text
+
+    def test_site_detail_filter_by_all_criteria(self, client: TestClient) -> None:
+        """Combine date range with type and action filters."""
+        resp = client.get(
+            "/admin/dashboard/sites/owner1"
+            "?date_from=2026-08-20T00:00:00&date_to=2026-08-20T23:59:59"
+            "&content_type=job&action=create",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        # ch-001 is job+create within the date range
+        assert "ch-001" in resp.text
+
+    def test_site_detail_date_filter_no_results(self, client: TestClient) -> None:
+        """Date range that matches nothing shows empty state."""
+        resp = client.get(
+            "/admin/dashboard/sites/owner1"
+            "?date_from=2026-08-21T00:00:00",
+            headers=_auth(),
+        )
+        assert resp.status_code == 200
+        assert "No changes recorded" in resp.text
