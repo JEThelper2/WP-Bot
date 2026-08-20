@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./shared-contract
+          pip install -e "./track-a[llm,dev]"
+          pip install -e "./track-b[dev]"
+
+      - name: Run unit tests
+        run: |
+          pytest track-a/tests/ track-b/tests/ \
+            --ignore=track-b/tests/test_onboarding_sandbox.py \
+            --ignore=track-b/tests/test_integration_phase.py \
+            --ignore=track-b/tests/test_integration_wp.py \
+            --ignore=track-b/tests/test_changelog_pg.py \
+            -v
+
+      - name: Run dashboard tests
+        run: |
+          pytest track-a/tests/test_dashboard.py -v
