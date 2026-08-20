@@ -46,11 +46,56 @@ def run(coro):
     return asyncio.run(coro)
 
 
+class _SyncLogWrapper:
+    """Wrapper that creates a fresh connection pool for each async call."""
+
+    def __init__(self, dsn: str) -> None:
+        self._dsn = dsn
+
+    def _run(self, coro):
+        return asyncio.run(coro)
+
+    def record_change(self, row):
+        async def _inner():
+            store = await PostgresChangeLog.connect(self._dsn)
+            try:
+                return await store.record_change(row)
+            finally:
+                await store._pool.close()
+        return self._run(_inner())
+
+    def most_recent(self, owner_id):
+        async def _inner():
+            store = await PostgresChangeLog.connect(self._dsn)
+            try:
+                return await store.most_recent(owner_id)
+            finally:
+                await store._pool.close()
+        return self._run(_inner())
+
+    def get(self, change_id):
+        async def _inner():
+            store = await PostgresChangeLog.connect(self._dsn)
+            try:
+                return await store.get(change_id)
+            finally:
+                await store._pool.close()
+        return self._run(_inner())
+
+
 @pytest.fixture()
-async def log() -> PostgresChangeLog:
-    store = await PostgresChangeLog.connect(PG_URL)
-    yield store
-    await store._pool.close()
+def log() -> _SyncLogWrapper:
+    wrapper = _SyncLogWrapper(PG_URL)
+    # Clean up any leftover data from previous runs
+    async def _cleanup():
+        store = await PostgresChangeLog.connect(PG_URL)
+        try:
+            async with store._pool.acquire() as conn:
+                await conn.execute("DELETE FROM change_log")
+        finally:
+            await store._pool.close()
+    asyncio.run(_cleanup())
+    return wrapper
 
 
 def make_row(change_id: str) -> ChangeRow:
@@ -66,35 +111,54 @@ def make_row(change_id: str) -> ChangeRow:
 
 
 def test_record_and_read_back(log):
-    row = run(log.record_change(make_row("ch-test-1")))
+    row = log.record_change(make_row("ch-test-1"))
     assert row.created_at is not None  # stamped by Postgres
 
-    recent = run(log.most_recent("15551234567"))
+    recent = log.most_recent("15551234567")
     assert recent.change_id == "ch-test-1"
     assert recent.content_type == "job"
     assert recent.before is None
     assert recent.after == {"title": "Barista", "content": "$18/hr", "post_id": 1}
     assert recent.live_url == "https://example.com/?p=1"
 
-    by_id = run(log.get("ch-test-1"))
+    by_id = log.get("ch-test-1")
     assert by_id is not None and by_id.owner_id == "15551234567"
 
 
 def test_most_recent_returns_latest_per_owner(log):
-    run(log.record_change(make_row("ch-old")))
-    run(
-        log.record_change(
-            ChangeRow(
-                change_id="ch-new",
-                owner_id="15551234567",
-                content_type="job",
-                action="update",
-                before={"title": "Barista", "content": "$18/hr", "post_id": 1},
-                after={"title": "Barista", "content": "$20/hr", "post_id": 1},
-            )
-        )
-    )
-    run(log.record_change(make_row("ch-other-owner")))  # different owner
+    from datetime import datetime, timedelta, timezone
 
-    recent = run(log.most_recent("15551234567"))
+    # Use explicit timestamps to guarantee ordering across fresh pools
+    now = datetime.now(tz=timezone.utc)
+    log.record_change(ChangeRow(
+        change_id="ch-old",
+        owner_id="15551234567",
+        content_type="job",
+        action="create",
+        before=None,
+        after={"title": "Barista", "content": "$18/hr", "post_id": 1},
+        live_url="https://example.com/?p=1",
+        created_at=now - timedelta(seconds=10),
+    ))
+    log.record_change(ChangeRow(
+        change_id="ch-new",
+        owner_id="15551234567",
+        content_type="job",
+        action="update",
+        before={"title": "Barista", "content": "$18/hr", "post_id": 1},
+        after={"title": "Barista", "content": "$20/hr", "post_id": 1},
+        created_at=now,
+    ))
+    log.record_change(ChangeRow(
+        change_id="ch-other-owner",
+        owner_id="99999999999",
+        content_type="job",
+        action="create",
+        before=None,
+        after={"title": "Barista", "content": "$18/hr", "post_id": 1},
+        live_url="https://example.com/?p=1",
+        created_at=now - timedelta(seconds=5),
+    ))
+
+    recent = log.most_recent("15551234567")
     assert recent.change_id == "ch-new"

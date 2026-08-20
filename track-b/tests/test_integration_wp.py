@@ -53,29 +53,41 @@ pytestmark = pytest.mark.skipif(
 
 
 def run(coro):
+    """Run an async coroutine in a fresh event loop.
+
+    Each call creates a new event loop, so we must NOT share an
+    httpx.AsyncClient across calls (its connections are bound to
+    the loop that created them). Instead, the client fixture below
+    lets WordPressClient create its own client per call.
+    """
     return asyncio.run(coro)
 
 
 @pytest.fixture()
 def client() -> WordPressClient:
-    http = httpx.AsyncClient(timeout=30.0)
-    return WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD, client=http)
+    # Do NOT inject a shared httpx.AsyncClient — each run() call creates
+    # a fresh event loop and connections from a prior loop are invalid.
+    # WordPressClient will create its own client when none is provided.
+    return WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
 
 
 @pytest.fixture()
-def cleanup(client: WordPressClient) -> list[int]:
+def cleanup() -> list[tuple[int, str | None]]:
     created: list[tuple[int, str | None]] = []
 
     yield created
 
+    # Each cleanup call needs its own WordPressClient (fresh event loop).
     for post_id, content_type in created:
         try:
-            run(client.delete_post(post_id, content_type=content_type))
+            c = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
+            run(c.delete_post(post_id, content_type=content_type))
         except Exception:
             pass
 
 
-def test_full_lifecycle_create_update_delete(client: WordPressClient, cleanup) -> None:
+def test_full_lifecycle_create_update_delete(cleanup) -> None:
+    client = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
     # --- create ---------------------------------------------------------
     created = run(
         client.create_post(
@@ -90,9 +102,10 @@ def test_full_lifecycle_create_update_delete(client: WordPressClient, cleanup) -
     assert created.live_url and created.live_url.startswith(WP_URL)
     cleanup.append((created.post_id, "job"))
 
-    # --- update ---------------------------------------------------------
+    # --- update (fresh client for new event loop) ------------------------
+    client2 = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
     updated = run(
-        client.update_post(
+        client2.update_post(
             created.post_id,
             {"description": "now $20/hr"},
             content_type="job",
@@ -103,18 +116,23 @@ def test_full_lifecycle_create_update_delete(client: WordPressClient, cleanup) -
     assert "now $20/hr" in updated.after["content"]
     assert updated.after["title"] == "IT Job Cashier"  # untouched by partial update
 
-    # --- delete ---------------------------------------------------------
-    deleted = run(client.delete_post(created.post_id, content_type="job"))
+    # --- delete (fresh client for new event loop) ------------------------
+    client3 = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
+    deleted = run(client3.delete_post(created.post_id, content_type="job"))
     assert deleted.before["post_id"] == created.post_id
     assert deleted.after["deleted"] is True
     assert deleted.after["status"] == "trash"
 
 
-def test_business_info_update_via_muplugin(client: WordPressClient) -> None:
-    first = run(client.update_site_option({"hours": "Mon-Fri 9-6"}))
+def test_business_info_update_via_muplugin() -> None:
+    # First call
+    client1 = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
+    first = run(client1.update_site_option({"hours": "Mon-Fri 9-6"}))
     assert first.after["hours"] == "Mon-Fri 9-6"
 
-    second = run(client.update_site_option({"hours": "Mon-Fri 9-5", "phone": "(555) 123-4567"}))
+    # Second call (fresh client for new event loop)
+    client2 = WordPressClient(WP_URL, WP_USERNAME, WP_APP_PASSWORD)
+    second = run(client2.update_site_option({"hours": "Mon-Fri 9-5", "phone": "(555) 123-4567"}))
     assert second.before["hours"] == "Mon-Fri 9-6"  # real prior state
     assert second.after["hours"] == "Mon-Fri 9-5"
     assert second.after["phone"] == "(555) 123-4567"
