@@ -37,20 +37,14 @@ class Settings:
     redis_url: str = "redis://localhost:6379/0"
     pg_dsn: str = ""  # Postgres DSN for the change log; empty -> in-memory dev log
     business_info_option_key: str = BUSINESS_INFO_OPTION_KEY
-    image_slot_allowlist: dict[str, str] = field(
-        default_factory=lambda: dict(IMAGE_SLOT_ALLOWLIST)
-    )
+    image_slot_allowlist: dict[str, str] = field(default_factory=lambda: dict(IMAGE_SLOT_ALLOWLIST))
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         return cls(
             secrets_key=os.environ.get("WPBOT_SECRETS_KEY", ""),
-            db_path=Path(
-                os.environ.get("WPBOT_TRACK_B_DB", str(_DEFAULT_DB))
-            ),
-            redis_url=os.environ.get(
-                "WPBOT_REDIS_URL", "redis://localhost:6379/0"
-            ),
+            db_path=Path(os.environ.get("WPBOT_TRACK_B_DB", str(_DEFAULT_DB))),
+            redis_url=os.environ.get("WPBOT_REDIS_URL", "redis://localhost:6379/0"),
             pg_dsn=os.environ.get("WPBOT_PG_DSN", ""),
             business_info_option_key=os.environ.get(
                 "WPBOT_BUSINESS_INFO_OPTION", BUSINESS_INFO_OPTION_KEY

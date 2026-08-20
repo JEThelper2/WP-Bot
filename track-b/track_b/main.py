@@ -29,12 +29,14 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
 from shared_contract import (
     CONTRACT_VERSION,
     ContractValidationError,
@@ -45,7 +47,7 @@ from shared_contract import (
 from .allowlist import apply_intent
 from .changelog import ChangeLog, InMemoryChangeLog
 from .config import Settings
-from .onboarding import OnboardedSiteStore, OnboardResult, onboard_site
+from .onboarding import OnboardedSiteStore, onboard_site
 from .pending import InMemoryPendingStore, PendingStore, RedisPendingStore
 from .undo import UNDO_WINDOW_SECONDS, undo
 from .wordpress import WordPressClient
@@ -92,9 +94,7 @@ async def build_default_services(settings: Settings) -> TrackBServices:
     # Pending store: Redis in production; in-memory dev fallback when Redis
     # is unreachable (confirmations then aren't shared across workers).
     try:
-        redis_client = aioredis.from_url(
-            settings.redis_url, socket_connect_timeout=2.0
-        )
+        redis_client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2.0)
         await redis_client.ping()
         pending: PendingStore = RedisPendingStore(redis_client)
     except Exception as exc:
@@ -221,7 +221,9 @@ def create_app(
         try:
             validate_intent(payload)
         except ContractValidationError as exc:
-            return _respond(_result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc)))
+            return _respond(
+                _result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc))
+            )
 
         services = await get_services()
         owner_id = payload["owner_id"]
@@ -233,27 +235,41 @@ def create_app(
         try:
             change_id = await services.pending.stage_pending(payload)
         except ContractValidationError as exc:
-            return _respond(_result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc)))
+            return _respond(
+                _result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc))
+            )
         return _respond(_result("needs_confirmation", change_id))
 
     async def _resolve(owner_id: str, decision: str, services: TrackBServices) -> JSONResponse:
         try:
             outcome = await services.pending.resolve_pending(owner_id, decision)
         except ValueError as exc:  # invalid decision value
-            return _respond(_result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc)))
+            return _respond(
+                _result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=str(exc))
+            )
 
         if outcome.kind == "discarded":
             # NO: nothing was written. Track A already told the owner.
             return _respond(_result("success", outcome.change_id or f"ch-{uuid.uuid4().hex[:12]}"))
         if outcome.kind == "nothing_pending":
-            return _respond(_result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=outcome.message))
+            return _respond(
+                _result("failed", f"ch-{uuid.uuid4().hex[:12]}", error_message=outcome.message)
+            )
         if outcome.kind == "expired":
-            return _respond(_result("failed", outcome.change_id or f"ch-{uuid.uuid4().hex[:12]}", error_message=outcome.message))
+            return _respond(
+                _result(
+                    "failed",
+                    outcome.change_id or f"ch-{uuid.uuid4().hex[:12]}",
+                    error_message=outcome.message,
+                )
+            )
 
         # released (YES): B2 -> B1 -> B4, using the staged change_id so the
         # audit trail links the confirmation to the write.
         assert outcome.intent is not None
-        return await _apply_with_services(outcome.intent, owner_id, services, change_id=outcome.change_id)
+        return await _apply_with_services(
+            outcome.intent, owner_id, services, change_id=outcome.change_id
+        )
 
     async def _apply_with_services(
         intent: dict[str, Any],
@@ -264,15 +280,25 @@ def create_app(
     ) -> JSONResponse:
         sites = services.sites.sites_for_owner(owner_id)
         if not sites:
-            return _respond(_result("failed", change_id or f"ch-{uuid.uuid4().hex[:12]}",
-                                    error_message="no onboarded site for this owner — complete onboarding first"))
+            return _respond(
+                _result(
+                    "failed",
+                    change_id or f"ch-{uuid.uuid4().hex[:12]}",
+                    error_message="no onboarded site for this owner — complete onboarding first",
+                )
+            )
         site = sites[0]
         try:
             client = services.make_client(site)
         except Exception as exc:
             logger.error("could not build WordPress client for %s: %s", site.site_id, exc)
-            return _respond(_result("failed", change_id or f"ch-{uuid.uuid4().hex[:12]}",
-                                    error_message="site credentials are unavailable"))
+            return _respond(
+                _result(
+                    "failed",
+                    change_id or f"ch-{uuid.uuid4().hex[:12]}",
+                    error_message="site credentials are unavailable",
+                )
+            )
         result = await apply_intent(
             intent, site.allowlist, client, services.changelog, change_id=change_id
         )
@@ -286,8 +312,13 @@ def create_app(
         services = await get_services()
         sites = services.sites.sites_for_owner(payload.owner_id)
         if not sites:
-            return _respond(_result("failed", f"ch-{uuid.uuid4().hex[:12]}",
-                                    error_message="no onboarded site for this owner"))
+            return _respond(
+                _result(
+                    "failed",
+                    f"ch-{uuid.uuid4().hex[:12]}",
+                    error_message="no onboarded site for this owner",
+                )
+            )
         site = sites[0]
         client = services.make_client(site)
         outcome = await undo(

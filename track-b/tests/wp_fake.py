@@ -69,20 +69,24 @@ class FakeWordPress:
         method = request.method
         path = request.url.path
         if path == "/wp-json/":
-            return httpx.Response(
-                200, json={"name": "WP-Bot Sandbox", "routes": {"/wp/v2": True}}
-            )
+            return httpx.Response(200, json={"name": "WP-Bot Sandbox", "routes": {"/wp/v2": True}})
         if path == "/wp-json/wp/v2/users/me":
             if self.expected_auth is not None:
                 import base64
 
-                expected = "Basic " + base64.b64encode(
-                    f"{self.expected_auth[0]}:{self.expected_auth[1]}".encode()
-                ).decode()
+                expected = (
+                    "Basic "
+                    + base64.b64encode(
+                        f"{self.expected_auth[0]}:{self.expected_auth[1]}".encode()
+                    ).decode()
+                )
                 if request.headers.get("authorization") != expected:
                     return httpx.Response(
                         401,
-                        json={"code": "rest_forbidden", "message": "Sorry, you are not allowed to do that."},
+                        json={
+                            "code": "rest_forbidden",
+                            "message": "Sorry, you are not allowed to do that.",
+                        },
                     )
             caps = self.ROLE_CAPABILITIES.get(self.user_roles[-1], {})
             return httpx.Response(
@@ -133,10 +137,8 @@ class FakeWordPress:
         # posts / jobs CRUD
         segments = [s for s in path.split("/") if s]
         if segments[-1] in ("posts", "jobs"):
-            post_type = segments[-1]
             collection = True
         elif len(segments) >= 5 and segments[-2] in ("posts", "jobs"):
-            post_type = segments[-2]
             collection = False
         else:
             return httpx.Response(404, json={"code": "rest_no_route", "message": "No route"})
@@ -146,8 +148,7 @@ class FakeWordPress:
             search = request.url.params.get("search", "").lower()
             if search:
                 matches = [
-                    p for p in self.posts.values()
-                    if search in (p["title"]["raw"] or "").lower()
+                    p for p in self.posts.values() if search in (p["title"]["raw"] or "").lower()
                 ]
                 return httpx.Response(200, json=matches)
             return httpx.Response(200, json=list(self.posts.values()))
@@ -165,11 +166,15 @@ class FakeWordPress:
             self.posts[post_id] = post
             return httpx.Response(201, json=post)
         if collection:
-            return httpx.Response(404, json={"code": "rest_post_invalid_id", "message": "Invalid post ID."})
+            return httpx.Response(
+                404, json={"code": "rest_post_invalid_id", "message": "Invalid post ID."}
+            )
         post_id = int(segments[-1])
         post = self.posts.get(post_id)
         if post is None:
-            return httpx.Response(404, json={"code": "rest_post_invalid_id", "message": "Invalid post ID."})
+            return httpx.Response(
+                404, json={"code": "rest_post_invalid_id", "message": "Invalid post ID."}
+            )
         if method == "GET":
             return httpx.Response(200, json=post)
         if method == "PUT":

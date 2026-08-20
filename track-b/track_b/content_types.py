@@ -13,7 +13,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from .changelog import ChangeLog, ChangeRow
 from .wordpress import WordPressClient, WordPressError
 
 logger = logging.getLogger("track_b.content_types")

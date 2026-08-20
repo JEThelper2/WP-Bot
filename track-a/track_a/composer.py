@@ -119,9 +119,7 @@ def compose_completion(live_url: str | None) -> str:
             f"Done! Here's the live change: {live_url}. "
             "You can undo this within 24h by replying UNDO."
         )
-    return (
-        "Done! The change is live. You can undo this within 24h by replying UNDO."
-    )
+    return "Done! The change is live. You can undo this within 24h by replying UNDO."
 
 
 def compose_error(error_message: str | None) -> str:
@@ -131,10 +129,7 @@ def compose_error(error_message: str | None) -> str:
     error_message when present, otherwise the generic text.
     """
     if error_message:
-        return (
-            f"Something went wrong: {error_message}. "
-            "Nothing was published. Want to try again?"
-        )
+        return f"Something went wrong: {error_message}. Nothing was published. Want to try again?"
     return GENERIC_ERROR_REPLY_TEXT
 
 
@@ -146,10 +141,7 @@ def compose_cancelled() -> str:
 def compose_undo_done(live_url: str | None) -> str:
     """Reply when Track B reports the owner's last change was reverted."""
     if live_url:
-        return (
-            f"Done — your last change has been reverted. "
-            f"Here's the live state: {live_url}."
-        )
+        return f"Done — your last change has been reverted. Here's the live state: {live_url}."
     return "Done — your last change has been reverted."
 
 

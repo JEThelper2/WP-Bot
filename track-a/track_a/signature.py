@@ -37,11 +37,9 @@ def verify_webhook_signature(
         return False
     if not signature_header.startswith(_PREFIX):
         return False
-    expected = signature_header[len(_PREFIX):].strip()
+    expected = signature_header[len(_PREFIX) :].strip()
     if not expected:
         return False
 
-    computed = hmac.new(
-        app_secret.encode("utf-8"), raw_body, hashlib.sha256
-    ).hexdigest()
+    computed = hmac.new(app_secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(computed, expected)

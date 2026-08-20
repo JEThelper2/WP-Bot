@@ -10,12 +10,8 @@ live in tests/test_integration_phase.py.
 """
 
 import asyncio
-from typing import Any
 
-import httpx
-import pytest
 from shared_contract import CONTRACT_VERSION
-
 from track_a.composer import (
     CANCEL_REPLY_TEXT,
     GENERIC_ERROR_REPLY_TEXT,
@@ -96,9 +92,7 @@ class FakeTrackB:
 
 
 def build_router(parser, trackb, sender):
-    return IntentRouter(
-        parser=parser, sessions=SessionStore(), sender=sender, trackb=trackb
-    )
+    return IntentRouter(parser=parser, sessions=SessionStore(), sender=sender, trackb=trackb)
 
 
 def handle(router, text):
@@ -119,9 +113,7 @@ def start_confirmation(parser, sender, trackb, intent):
 def test_yes_success_sends_completion_with_live_url():
     intent = make_intent()
     sender = FakeSender()
-    trackb = FakeTrackB(
-        result("success", live_url="https://example.com/owners/15551234567")
-    )
+    trackb = FakeTrackB(result("success", live_url="https://example.com/owners/15551234567"))
     router = start_confirmation(
         ScriptedParser(IntentParseResult(status="intent", intent=intent, confidence=0.95)),
         sender,
@@ -335,14 +327,16 @@ def test_end_to_end_confirmation_flow_against_real_track_b_api(tmp_path):
     sender = FakeSender()
 
     import httpx as _httpx
+    from wp_fake import SITE, FakeWordPress
+
     from track_b.allowlist import PILOT_SITE_CONFIG
     from track_b.changelog import InMemoryChangeLog
     from track_b.config import Settings as BSettings
-    from track_b.main import TrackBServices, create_app as create_track_b_app
+    from track_b.main import TrackBServices
+    from track_b.main import create_app as create_track_b_app
     from track_b.onboarding import OnboardedSiteStore
     from track_b.pending import InMemoryPendingStore
     from track_b.wordpress import WordPressClient
-    from wp_fake import SITE, FakeWordPress
 
     fake = FakeWordPress(expected_auth=("editor", "app-pass"))
     sites = OnboardedSiteStore(tmp_path / "sites.db")
@@ -359,9 +353,7 @@ def test_end_to_end_confirmation_flow_against_real_track_b_api(tmp_path):
             site.site_url,
             "editor",
             "app-pass",
-            client=_httpx.AsyncClient(
-                transport=_httpx.MockTransport(fake.handler)
-            ),
+            client=_httpx.AsyncClient(transport=_httpx.MockTransport(fake.handler)),
         )
 
     services = TrackBServices(

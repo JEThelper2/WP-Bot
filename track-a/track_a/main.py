@@ -36,13 +36,13 @@ from fastapi.responses import PlainTextResponse
 
 from .admin import router as admin_router
 from .ai_provider import get_provider
-from .dashboard import router as dashboard_router
 from .config import Settings
+from .dashboard import router as dashboard_router
 from .intent import IntentParser
 from .media import WhatsAppMediaClient
 from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
-from .reply import ReplySender, WhatsAppReplySender
+from .reply import WhatsAppReplySender
 from .routing import IntentRouter
 from .signature import verify_webhook_signature
 from .store import (
@@ -116,9 +116,7 @@ def create_app(
             sender=sender,
             trackb=trackb,
             onboarding=OnboardingFlow(trackb=trackb),
-            log_escalation=lambda owner, msg: log_escalation_request(
-                settings.db_path, owner, msg
-            ),
+            log_escalation=lambda owner, msg: log_escalation_request(settings.db_path, owner, msg),
         )
 
     app = FastAPI(
@@ -185,14 +183,12 @@ def create_app(
                     "webhook delivery rejected: X-Hub-Signature-256 invalid "
                     "(forged or misconfigured secret?)"
                 )
-                raise HTTPException(
-                    status_code=403, detail="Webhook signature verification failed"
-                )
+                raise HTTPException(status_code=403, detail="Webhook signature verification failed")
 
         try:
             payload: Any = json.loads(raw_body)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid JSON body")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
 
         if not isinstance(payload, dict) or payload.get("object") != _WABA_OBJECT:
             # Meta: answer unrecognized objects with 404 so Meta stops

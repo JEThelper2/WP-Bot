@@ -30,12 +30,12 @@ import logging
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .allowlist import PILOT_SITE_CONFIG, SiteConfig, config_to_dict, config_from_dict
+from .allowlist import PILOT_SITE_CONFIG, SiteConfig, config_from_dict, config_to_dict
 from .secrets import Vault
 from .wordpress import WordPressClient, WordPressError
 
@@ -118,7 +118,7 @@ class OnboardedSiteStore:
     ) -> OnboardedSite:
         """Insert, or refresh an existing site with the same URL."""
         token = self.vault.encrypt(app_password)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         config_json = json.dumps(config_to_dict(allowlist))
         with self._connect() as conn:
             existing = conn.execute(
@@ -183,8 +183,7 @@ class OnboardedSiteStore:
         """(username, decrypted app password) for a site, or None."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT username, encrypted_password FROM onboarded_sites "
-                "WHERE site_id = ?",
+                "SELECT username, encrypted_password FROM onboarded_sites WHERE site_id = ?",
                 (site_id,),
             ).fetchone()
         if row is None:
@@ -201,9 +200,7 @@ class OnboardedSiteStore:
     def list_all_sites(self) -> list[OnboardedSite]:
         """Return all onboarded sites, newest first."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM onboarded_sites ORDER BY created_at DESC"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM onboarded_sites ORDER BY created_at DESC").fetchall()
         return [self._row_to_site(row) for row in rows]
 
     def count_sites(self, status: str | None = None) -> int:
@@ -215,9 +212,7 @@ class OnboardedSiteStore:
                     (status,),
                 ).fetchone()
             else:
-                row = conn.execute(
-                    "SELECT COUNT(*) AS n FROM onboarded_sites"
-                ).fetchone()
+                row = conn.execute("SELECT COUNT(*) AS n FROM onboarded_sites").fetchone()
         return int(row["n"])
 
     def _row_to_site(self, row: sqlite3.Row) -> OnboardedSite:
@@ -286,9 +281,7 @@ async def validate_site_access(
                 REASON_NOT_WORDPRESS,
                 "no WordPress REST API was found at this URL",
             )
-        return ValidationResult(
-            False, REASON_UNREACHABLE, f"could not reach the site ({exc})"
-        )
+        return ValidationResult(False, REASON_UNREACHABLE, f"could not reach the site ({exc})")
 
     roles = tuple(user.get("roles") or ())
     caps = user.get("capabilities") or {}
@@ -319,13 +312,9 @@ async def onboard_site(
     client: WordPressClient | None = None,
 ) -> OnboardResult:
     """Validate, then persist the site record on success."""
-    validation = await validate_site_access(
-        site_url, username, app_password, client=client
-    )
+    validation = await validate_site_access(site_url, username, app_password, client=client)
     if not validation.ok:
-        logger.info(
-            "onboarding rejected for %r: %s", site_url, validation.reason
-        )
+        logger.info("onboarding rejected for %r: %s", site_url, validation.reason)
         return OnboardResult(
             status="failed",
             reason=validation.reason,

@@ -88,9 +88,7 @@ class WordPressClient:
     ) -> None:
         self.base_url = site_url.rstrip("/")
         self._auth = (username, app_password)
-        self._client = client or httpx.AsyncClient(
-            auth=self._auth, timeout=timeout
-        )
+        self._client = client or httpx.AsyncClient(auth=self._auth, timeout=timeout)
 
     # ------------------------------------------------------------ auth probe
 
@@ -105,9 +103,7 @@ class WordPressClient:
 
     # ------------------------------------------------------------ posts
 
-    async def create_post(
-        self, content_type: str, fields: dict[str, Any]
-    ) -> ChangeRecord:
+    async def create_post(self, content_type: str, fields: dict[str, Any]) -> ChangeRecord:
         """Create a job/announcement post; return before/after state."""
         if content_type not in _CONTENT_TYPE_CATEGORY:
             raise WordPressError(
@@ -122,9 +118,7 @@ class WordPressClient:
             categories = [await self._ensure_category(content_type)]
         payload = self._post_payload(content_type, fields, categories)
 
-        created = await self._request(
-            "POST", f"/wp-json/wp/v2/{post_type}", json=payload
-        )
+        created = await self._request("POST", f"/wp-json/wp/v2/{post_type}", json=payload)
         created = created.json()
         return ChangeRecord(
             before=None,
@@ -147,9 +141,7 @@ class WordPressClient:
             categories=None,
             partial=True,
         )
-        updated = await self._request(
-            "PUT", f"/wp-json/wp/v2/{post_type}/{post_id}", json=payload
-        )
+        updated = await self._request("PUT", f"/wp-json/wp/v2/{post_type}/{post_id}", json=payload)
         updated = updated.json()
         return ChangeRecord(
             before=self._post_state(current),
@@ -158,16 +150,12 @@ class WordPressClient:
             live_url=updated.get("link"),
         )
 
-    async def delete_post(
-        self, post_id: int, content_type: str | None = None
-    ) -> ChangeRecord:
+    async def delete_post(self, post_id: int, content_type: str | None = None) -> ChangeRecord:
         """Trash the post (recoverable); `before` is its final live state."""
         post_type, current = await self._get_post(post_id, content_type)
         # force=false (default) moves it to the trash — reversible, and the
         # post leaves the live site immediately.
-        await self._request(
-            "DELETE", f"/wp-json/wp/v2/{post_type}/{post_id}"
-        )
+        await self._request("DELETE", f"/wp-json/wp/v2/{post_type}/{post_id}")
         return ChangeRecord(
             before=self._post_state(current),
             after={"deleted": True, "post_id": post_id, "status": "trash"},
@@ -175,9 +163,7 @@ class WordPressClient:
             live_url=None,
         )
 
-    async def _get_post(
-        self, post_id: int, content_type: str | None
-    ) -> tuple[str, dict[str, Any]]:
+    async def _get_post(self, post_id: int, content_type: str | None) -> tuple[str, dict[str, Any]]:
         """Fetch a post, probing the standard route first, then a custom
         post type. Returns (rest_post_type, post)."""
         if content_type in _CONTENT_TYPE_CATEGORY:
@@ -195,14 +181,10 @@ class WordPressClient:
                 site_url=self.base_url,
             )
 
-        resp = await self._request(
-            "GET", f"/wp-json/wp/v2/posts/{post_id}", allow_404=True
-        )
+        resp = await self._request("GET", f"/wp-json/wp/v2/posts/{post_id}", allow_404=True)
         if resp is not None:
             return "posts", resp.json()
-        resp = await self._request(
-            "GET", f"/wp-json/wp/v2/jobs/{post_id}", allow_404=True
-        )
+        resp = await self._request("GET", f"/wp-json/wp/v2/jobs/{post_id}", allow_404=True)
         if resp is not None:
             post = resp.json()
             post["_wpbot_content_type"] = "job"
@@ -217,16 +199,12 @@ class WordPressClient:
         """'jobs' custom post type if the site registers it, else 'posts'."""
         if content_type != "job":
             return "posts"  # announcements are always standard posts
-        resp = await self._request(
-            "GET", "/wp-json/wp/v2/types", allow_404=True
-        )
+        resp = await self._request("GET", "/wp-json/wp/v2/types", allow_404=True)
         if resp is not None and "jobs" in resp.json():
             return "jobs"
         return "posts"
 
-    async def find_post_by_title(
-        self, content_type: str, title: str
-    ) -> int | None:
+    async def find_post_by_title(self, content_type: str, title: str) -> int | None:
         """Resolve a post id by exact title match (used by update/delete)."""
         post_type = await self._resolve_post_type(content_type)
         resp = await self._request(
@@ -235,9 +213,7 @@ class WordPressClient:
         )
         wanted = title.strip().lower()
         for post in resp.json():
-            t = post.get("title", {}).get("raw") or post.get("title", {}).get(
-                "rendered"
-            )
+            t = post.get("title", {}).get("raw") or post.get("title", {}).get("rendered")
             if t and t.strip().lower() == wanted:
                 return int(post["id"])
         return None
@@ -245,15 +221,11 @@ class WordPressClient:
     async def _ensure_category(self, content_type: str) -> int:
         """Get-or-create the 'jobs'/'announcements' category; return its id."""
         name = _CONTENT_TYPE_CATEGORY[content_type]
-        resp = await self._request(
-            "GET", f"/wp-json/wp/v2/categories?search={name}"
-        )
+        resp = await self._request("GET", f"/wp-json/wp/v2/categories?search={name}")
         for cat in resp.json():
             if cat.get("name", "").lower() == name:
                 return int(cat["id"])
-        created = await self._request(
-            "POST", "/wp-json/wp/v2/categories", json={"name": name}
-        )
+        created = await self._request("POST", "/wp-json/wp/v2/categories", json={"name": name})
         return int(created.json()["id"])
 
     @staticmethod
@@ -294,9 +266,7 @@ class WordPressClient:
             details.append(f"Expires: {fields['expires_at']}")
         if details and not partial:
             content = str(payload.get("content") or "")
-            payload["content"] = (
-                f"{content}\n\nDetails:\n" + "\n".join(details)
-            ).strip()
+            payload["content"] = (f"{content}\n\nDetails:\n" + "\n".join(details)).strip()
 
         if categories is not None:
             payload["categories"] = categories
@@ -310,7 +280,8 @@ class WordPressClient:
         return {
             "post_id": post.get("id"),
             "title": post.get("title", {}).get("raw") or post.get("title", {}).get("rendered"),
-            "content": post.get("content", {}).get("raw") or post.get("content", {}).get("rendered"),
+            "content": post.get("content", {}).get("raw")
+            or post.get("content", {}).get("rendered"),
             "status": post.get("status"),
             "categories": post.get("categories"),
             "link": post.get("link"),
@@ -336,9 +307,7 @@ class WordPressClient:
         return ChangeRecord(before=before or {}, after=after)
 
     async def _get_business_info(self) -> dict[str, Any] | None:
-        resp = await self._request(
-            "GET", "/wp-json/wpbot/v1/business-info", allow_404=True
-        )
+        resp = await self._request("GET", "/wp-json/wpbot/v1/business-info", allow_404=True)
         if resp is None:
             raise WordPressError(
                 f"site {self.base_url} does not expose the wpbot/v1/business-info "
@@ -353,9 +322,7 @@ class WordPressClient:
 
     # --------------------------------------------------------- images (v1.5)
 
-    async def upload_and_replace_image(
-        self, slot: str, media: dict[str, Any]
-    ) -> ChangeRecord:
+    async def upload_and_replace_image(self, slot: str, media: dict[str, Any]) -> ChangeRecord:
         """v1.5 (optional): upload to Media Library and swap the slot.
 
         Never deletes the previous image — it stays in the Media Library.
@@ -412,9 +379,7 @@ class WordPressClient:
             # Always authenticate with THIS client's credentials, even when
             # an externally-constructed httpx client was injected (tests,
             # app wiring) — never depend on how the transport was set up.
-            resp = await self._client.request(
-                method, url, auth=self._auth, **kwargs
-            )
+            resp = await self._client.request(method, url, auth=self._auth, **kwargs)
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
             raise WordPressError(
                 f"could not reach WordPress at {self.base_url} ({type(exc).__name__}); "
@@ -448,8 +413,7 @@ class WordPressClient:
             except ValueError:
                 pass
             raise WordPressError(
-                f"WordPress API error on {self.base_url}{path}: "
-                f"{code} {message}".strip()
+                f"WordPress API error on {self.base_url}{path}: {code} {message}".strip()
                 or f"HTTP {resp.status_code}",
                 status_code=resp.status_code,
                 site_url=self.base_url,

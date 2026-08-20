@@ -5,13 +5,12 @@ TTL expiry is reported as expired and never executes a stale write."""
 import asyncio
 
 import pytest
-from shared_contract import CONTRACT_VERSION, ContractValidationError
 
+from shared_contract import CONTRACT_VERSION, ContractValidationError
 from track_b.pending import (
     PENDING_TTL_SECONDS,
     InMemoryPendingStore,
     RedisPendingStore,
-    ResolveOutcome,
 )
 
 OWNER = "15551234567"

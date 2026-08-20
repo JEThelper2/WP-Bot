@@ -88,7 +88,7 @@ class ResolveOutcome:
     message: str = ""
 
     @classmethod
-    def released(cls, change_id: str, intent: dict[str, Any]) -> "ResolveOutcome":
+    def released(cls, change_id: str, intent: dict[str, Any]) -> ResolveOutcome:
         return cls(
             kind="released",
             change_id=change_id,
@@ -97,7 +97,7 @@ class ResolveOutcome:
         )
 
     @classmethod
-    def discarded(cls, change_id: str) -> "ResolveOutcome":
+    def discarded(cls, change_id: str) -> ResolveOutcome:
         return cls(
             kind="discarded",
             change_id=change_id,
@@ -105,14 +105,14 @@ class ResolveOutcome:
         )
 
     @classmethod
-    def nothing_pending(cls) -> "ResolveOutcome":
+    def nothing_pending(cls) -> ResolveOutcome:
         return cls(
             kind="nothing_pending",
             message="nothing is pending for this owner",
         )
 
     @classmethod
-    def expired(cls, change_id: str) -> "ResolveOutcome":
+    def expired(cls, change_id: str) -> ResolveOutcome:
         return cls(
             kind="expired",
             change_id=change_id,
@@ -149,9 +149,7 @@ class RedisPendingStore:
         validate_intent(intent)  # boundary discipline: never stage garbage
         owner_id = intent["owner_id"]
         change_id = f"pc-{uuid.uuid4().hex[:12]}"
-        payload = json.dumps(
-            {"change_id": change_id, "intent": intent, "staged_at": time.time()}
-        )
+        payload = json.dumps({"change_id": change_id, "intent": intent, "staged_at": time.time()})
         pipe = self._redis.pipeline()
         pipe.set(_intent_key(owner_id), payload, ex=self.ttl)
         pipe.set(_meta_key(owner_id), change_id, ex=self.ttl + self.grace)

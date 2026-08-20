@@ -39,9 +39,7 @@ class WhatsAppMediaClient:
     async def download_media(self, media_id: str) -> MediaPayload:
         """Download a media object (e.g. a voice note) by its media id."""
         if not self.api_token:
-            raise ValueError(
-                "WHATSAPP_API_TOKEN is not configured; cannot download media"
-            )
+            raise ValueError("WHATSAPP_API_TOKEN is not configured; cannot download media")
         headers = {"Authorization": f"Bearer {self.api_token}"}
 
         info_resp = await self._client.get(
@@ -59,9 +57,7 @@ class WhatsAppMediaClient:
         media_resp = await self._client.get(url, headers=headers, timeout=60.0)
         media_resp.raise_for_status()
 
-        mime_type = media_resp.headers.get(
-            "content-type", info.get("mime_type", "audio/ogg")
-        )
+        mime_type = media_resp.headers.get("content-type", info.get("mime_type", "audio/ogg"))
         return MediaPayload(
             content=media_resp.content,
             mime_type=mime_type,

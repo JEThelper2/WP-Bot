@@ -12,9 +12,9 @@ import json
 
 import httpx
 import pytest
+from wp_fake import SITE, FakeWordPress
 
 from track_b.wordpress import ChangeRecord, WordPressClient, WordPressError
-from wp_fake import SITE, FakeWordPress
 
 USER = "editor"
 APP_PASSWORD = "SuperSecretAppPass123"
@@ -54,9 +54,7 @@ def test_create_announcement_falls_back_to_standard_post_with_category(make_clie
     wp_client, fake = make_client  # no jobs CPT
     fake.categories.pop("announcements", None)  # category must be created
     record = run(
-        wp_client.create_post(
-            "announcement", {"title": "Holiday Hours", "body": "Closed Monday"}
-        )
+        wp_client.create_post("announcement", {"title": "Holiday Hours", "body": "Closed Monday"})
     )
 
     assert record.after["title"] == "Holiday Hours"
@@ -72,12 +70,15 @@ def test_create_job_appends_location_and_remote_details(make_client):
     record = run(
         wp_client.create_post(
             "job",
-            {"title": "Cashier", "description": "evenings", "location": "Downtown", "remote": False},
+            {
+                "title": "Cashier",
+                "description": "evenings",
+                "location": "Downtown",
+                "remote": False,
+            },
         )
     )
-    assert record.after["content"] == (
-        "evenings\n\nDetails:\nLocation: Downtown\nRemote: No"
-    )
+    assert record.after["content"] == ("evenings\n\nDetails:\nLocation: Downtown\nRemote: No")
 
 
 # ------------------------------------------------------------ update / delete

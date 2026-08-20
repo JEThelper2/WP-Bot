@@ -5,7 +5,6 @@ deliberate and reviewed.
 """
 
 from shared_contract import CONTRACT_VERSION
-
 from track_a.composer import (
     CANCEL_REPLY_TEXT,
     GENERIC_ERROR_REPLY_TEXT,
@@ -34,7 +33,8 @@ def make_intent(action, content_type, fields):
 
 def test_job_create_confirmation():
     intent = make_intent(
-        "create", "job",
+        "create",
+        "job",
         {
             "title": "Part-time Barista",
             "location": "Downtown",
@@ -51,13 +51,13 @@ def test_job_create_confirmation():
 
 def test_job_create_remote_omits_location():
     intent = make_intent(
-        "create", "job",
+        "create",
+        "job",
         {"title": "Remote Writer", "remote": True, "description": "Weekly blog posts"},
     )
     text = compose_confirmation(intent)
     assert text == (
-        "Post job: 'Remote Writer' — remote. "
-        "Weekly blog posts. Reply YES to publish, NO to cancel."
+        "Post job: 'Remote Writer' — remote. Weekly blog posts. Reply YES to publish, NO to cancel."
     )
 
 
@@ -69,9 +69,7 @@ def test_job_create_minimal():
 
 
 def test_job_update_confirmation():
-    intent = make_intent(
-        "update", "job", {"title": "Barista", "description": "Now $20/hr"}
-    )
+    intent = make_intent("update", "job", {"title": "Barista", "description": "Now $20/hr"})
     assert compose_confirmation(intent) == (
         "Update job 'Barista': description: Now $20/hr. Reply YES to publish, NO to cancel."
     )
@@ -89,8 +87,7 @@ def test_announcement_create_confirmation():
         "create", "announcement", {"title": "Summer Hours", "body": "Open until 9pm"}
     )
     assert compose_confirmation(intent) == (
-        "Post announcement: 'Summer Hours'. Open until 9pm. "
-        "Reply YES to publish, NO to cancel."
+        "Post announcement: 'Summer Hours'. Open until 9pm. Reply YES to publish, NO to cancel."
     )
 
 
@@ -120,7 +117,8 @@ def test_business_info_single_field_matches_spec_example():
 
 def test_business_info_multiple_fields():
     intent = make_intent(
-        "update", "business_info",
+        "update",
+        "business_info",
         {"hours": "Mon-Fri 9-6", "phone": "(555) 123-4567"},
     )
     assert compose_confirmation(intent) == (
@@ -130,12 +128,9 @@ def test_business_info_multiple_fields():
 
 
 def test_image_update_matches_spec_example():
-    intent = make_intent(
-        "update", "image", {"slot": "homepage_banner", "media_base64": "..."}
-    )
+    intent = make_intent("update", "image", {"slot": "homepage_banner", "media_base64": "..."})
     assert compose_confirmation(intent) == (
-        "Replace your homepage banner with the photo you sent. "
-        "Reply YES to confirm, NO to cancel."
+        "Replace your homepage banner with the photo you sent. Reply YES to confirm, NO to cancel."
     )
 
 
@@ -165,8 +160,11 @@ def test_every_confirmation_ends_with_yes_no_instruction():
     for intent in cases:
         text = compose_confirmation(intent)
         assert text.rstrip().endswith(
-            ("YES to publish, NO to cancel.", "YES to confirm, NO to cancel.",
-             "YES to remove, NO to cancel.")
+            (
+                "YES to publish, NO to cancel.",
+                "YES to confirm, NO to cancel.",
+                "YES to remove, NO to cancel.",
+            )
         ), text
 
 

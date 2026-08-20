@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+
 from shared_contract import (
     ContractValidationError,
     validate_intent,
@@ -40,9 +41,7 @@ class TrackBError(Exception):
 
 
 class TrackBClient:
-    def __init__(
-        self, base_url: str, client: httpx.AsyncClient | None = None
-    ) -> None:
+    def __init__(self, base_url: str, client: httpx.AsyncClient | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self._client = client or httpx.AsyncClient()
 
@@ -75,9 +74,7 @@ class TrackBClient:
         try:
             validate_result(result)
         except ContractValidationError as exc:
-            raise TrackBError(
-                f"Track B returned a result that fails the contract: {exc}"
-            ) from exc
+            raise TrackBError(f"Track B returned a result that fails the contract: {exc}") from exc
         return result
 
     async def undo(self, owner_id: str) -> dict[str, Any]:
@@ -96,9 +93,7 @@ class TrackBClient:
         try:
             validate_result(result)
         except ContractValidationError as exc:
-            raise TrackBError(
-                f"Track B returned a result that fails the contract: {exc}"
-            ) from exc
+            raise TrackBError(f"Track B returned a result that fails the contract: {exc}") from exc
         return result
 
     async def onboard_site(

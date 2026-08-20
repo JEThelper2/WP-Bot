@@ -41,9 +41,7 @@ class ContractValidationError(ValueError):
 
 def _validate(obj: Any, validator: Draft202012Validator, name: str) -> dict[str, Any]:
     if not isinstance(obj, dict):
-        raise ContractValidationError(
-            f"{name} must be a JSON object, got {type(obj).__name__}"
-        )
+        raise ContractValidationError(f"{name} must be a JSON object, got {type(obj).__name__}")
 
     version = obj.get("contract_version")
     if version != CONTRACT_VERSION:
@@ -63,9 +61,7 @@ def _validate(obj: Any, validator: Draft202012Validator, name: str) -> dict[str,
     if errors:
         error = errors[0]
         path = error.json_path if error.json_path != "$" else "<root>"
-        raise ContractValidationError(
-            f"{name} failed validation at {path}: {error.message}"
-        )
+        raise ContractValidationError(f"{name} failed validation at {path}: {error.message}")
     return obj
 
 

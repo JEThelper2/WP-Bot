@@ -12,8 +12,8 @@ import asyncio
 
 import httpx
 import pytest
-from shared_contract import CONTRACT_VERSION, ContractValidationError
 
+from shared_contract import CONTRACT_VERSION, ContractValidationError
 from track_a.trackb import TrackBClient, TrackBError
 from track_b.stub import create_stub_app as create_track_b_app
 

@@ -39,6 +39,7 @@ logger = logging.getLogger("track_a.ai_provider")
 # Provider interface (Dependency Inversion)
 # ---------------------------------------------------------------------------
 
+
 class AIProvider(Protocol):
     """Single method the intent parser depends on.
 
@@ -59,6 +60,7 @@ class AIProvider(Protocol):
 # ---------------------------------------------------------------------------
 # Groq provider (default — free, fast, OpenAI-compatible)
 # ---------------------------------------------------------------------------
+
 
 class GroqProvider:
     """Groq's OpenAI-compatible API for structured JSON extraction.
@@ -87,9 +89,7 @@ class GroqProvider:
 
     async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
         if not self._api_key:
-            raise ValueError(
-                "GROQ_API_KEY is not configured; cannot call the LLM"
-            )
+            raise ValueError("GROQ_API_KEY is not configured; cannot call the LLM")
 
         from openai import AsyncOpenAI
 
@@ -114,6 +114,7 @@ class GroqProvider:
 # Retry + timeout wrapper (applies to any provider)
 # ---------------------------------------------------------------------------
 
+
 class RateLimitError(Exception):
     """Raised when a provider returns HTTP 429 (rate limited).
 
@@ -137,6 +138,7 @@ def _is_rate_limit(exc: Exception) -> bool:
     # OpenAI SDK (used by Groq) raises openai.RateLimitError
     try:
         import openai
+
         if isinstance(exc, openai.RateLimitError):
             return True
     except ImportError:
@@ -144,6 +146,7 @@ def _is_rate_limit(exc: Exception) -> bool:
     # Google SDK raises google.api_core.exceptions.ResourceExhausted
     try:
         from google.api_core import exceptions as google_exc
+
         if isinstance(exc, google_exc.ResourceExhausted):
             return True
     except ImportError:
@@ -188,7 +191,7 @@ class RetryableProvider:
                     timeout=self.TIMEOUT,
                 )
                 return result
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 logger.warning("LLM call timed out (attempt %d/2)", attempt + 1)
                 first_exc = first_exc or exc
             except json.JSONDecodeError as exc:
@@ -234,6 +237,7 @@ class RetryableProvider:
 # Gemini provider (fallback — free tier, acceptable for overflow)
 # ---------------------------------------------------------------------------
 
+
 class GeminiProvider:
     """Google Gemini API (Flash) for structured JSON extraction.
 
@@ -262,9 +266,7 @@ class GeminiProvider:
 
     async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
         if not self._api_key:
-            raise ValueError(
-                "GEMINI_API_KEY is not configured; cannot call the LLM"
-            )
+            raise ValueError("GEMINI_API_KEY is not configured; cannot call the LLM")
 
         from google import genai
         from google.genai import types
@@ -286,6 +288,7 @@ class GeminiProvider:
 # ---------------------------------------------------------------------------
 # Fallback chain (per-request failover on rate limit)
 # ---------------------------------------------------------------------------
+
 
 class FallbackChain:
     """Provider chain that tries primary first, falls back on rate limit.
@@ -317,9 +320,7 @@ class FallbackChain:
                 exc,
             )
             try:
-                result = await self._fallback.complete_json(
-                    system=system, user=user
-                )
+                result = await self._fallback.complete_json(system=system, user=user)
                 logger.info(
                     "Fallback to %s succeeded for this request",
                     self._fallback_name,
@@ -357,9 +358,7 @@ def _build_provider(name: str, **kwargs: Any) -> AIProvider:
     cls = _PROVIDERS.get(name)
     if cls is None:
         available = ", ".join(sorted(_PROVIDERS))
-        raise ValueError(
-            f"Unknown AI provider {name!r}; available: {available}"
-        )
+        raise ValueError(f"Unknown AI provider {name!r}; available: {available}")
     return cls(**kwargs)
 
 
@@ -383,9 +382,7 @@ def get_provider(
        failover on rate limit.
     """
     name = (name or os.environ.get("AI_PROVIDER") or "groq").lower()
-    fallback_name = (
-        fallback_name or os.environ.get("AI_FALLBACK_PROVIDER") or ""
-    ).lower()
+    fallback_name = (fallback_name or os.environ.get("AI_FALLBACK_PROVIDER") or "").lower()
 
     # Build the primary provider, wrapped in RetryableProvider.
     primary = RetryableProvider(_build_provider(name, **kwargs))

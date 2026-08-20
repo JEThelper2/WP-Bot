@@ -24,7 +24,7 @@ from track_a.main import create_app
 from track_a.media import MediaPayload
 from track_a.pipeline import MessageProcessor
 from track_a.reply import FALLBACK_REPLY_TEXT
-from track_a.store import get_message, list_messages
+from track_a.store import list_messages
 from track_a.transcribe import StubTranscriber, Transcription
 
 PHONE = "15551234567"
@@ -76,9 +76,7 @@ class FakeMediaClient:
     async def download_media(self, media_id: str) -> MediaPayload:
         if media_id not in self.clips:
             raise ValueError(f"no clip for media id {media_id!r}")
-        return MediaPayload(
-            content=self.clips[media_id], mime_type="audio/wav", media_id=media_id
-        )
+        return MediaPayload(content=self.clips[media_id], mime_type="audio/wav", media_id=media_id)
 
 
 class RecordingSender:
@@ -256,9 +254,9 @@ def test_text_and_voice_normalize_to_same_field(client, app) -> None:
     """Downstream (intent parsing) only ever sees `message_text`."""
     payload = text_payload("update the menu prices", "wamid.TXT2")
     payload["entry"][0]["changes"][0]["value"]["messages"].append(
-        audio_payload("clip-clear", "wamid.CLEAR2")["entry"][0]["changes"][0][
-            "value"
-        ]["messages"][0]
+        audio_payload("clip-clear", "wamid.CLEAR2")["entry"][0]["changes"][0]["value"]["messages"][
+            0
+        ]
     )
     post(client, payload)
 

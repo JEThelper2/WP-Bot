@@ -12,9 +12,7 @@ Tests cover:
 
 from __future__ import annotations
 
-import json
 import sqlite3
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -60,29 +58,71 @@ def track_b_db(tmp_path):
     # Insert test data
     conn.execute(
         "INSERT INTO onboarded_sites VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("site-abc", "owner1", "https://example.com", "editor", "enc_pass",
-         "{}", "active", "2026-08-20T10:00:00Z"),
+        (
+            "site-abc",
+            "owner1",
+            "https://example.com",
+            "editor",
+            "enc_pass",
+            "{}",
+            "active",
+            "2026-08-20T10:00:00Z",
+        ),
     )
     conn.execute(
         "INSERT INTO onboarded_sites VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        ("site-def", "owner2", "https://test.com", "editor", "enc_pass",
-         "{}", "inactive", "2026-08-19T10:00:00Z"),
+        (
+            "site-def",
+            "owner2",
+            "https://test.com",
+            "editor",
+            "enc_pass",
+            "{}",
+            "inactive",
+            "2026-08-19T10:00:00Z",
+        ),
     )
     conn.execute(
         "INSERT INTO change_log VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("ch-001", "owner1", "job", "create", None,
-         '{"title":"Test Job"}', "https://example.com/job/test",
-         None, "2026-08-20T11:00:00Z"),
+        (
+            "ch-001",
+            "owner1",
+            "job",
+            "create",
+            None,
+            '{"title":"Test Job"}',
+            "https://example.com/job/test",
+            None,
+            "2026-08-20T11:00:00Z",
+        ),
     )
     conn.execute(
         "INSERT INTO change_log VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("ch-002", "owner1", "business_info", "update", '{"hours":"9-5"}',
-         '{"hours":"9-6"}', None, None, "2026-08-20T12:00:00Z"),
+        (
+            "ch-002",
+            "owner1",
+            "business_info",
+            "update",
+            '{"hours":"9-5"}',
+            '{"hours":"9-6"}',
+            None,
+            None,
+            "2026-08-20T12:00:00Z",
+        ),
     )
     conn.execute(
         "INSERT INTO change_log VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("ch-003", "owner2", "announcement", "create", None,
-         '{"title":"Test"}', None, None, "2026-08-20T13:00:00Z"),
+        (
+            "ch-003",
+            "owner2",
+            "announcement",
+            "create",
+            None,
+            '{"title":"Test"}',
+            None,
+            None,
+            "2026-08-20T13:00:00Z",
+        ),
     )
     conn.commit()
     conn.close()
@@ -91,8 +131,6 @@ def track_b_db(tmp_path):
 
 @pytest.fixture()
 def app(tmp_path, track_b_db):
-    from track_a.config import Settings
-    from track_a.main import create_app
 
     settings = Settings(
         verify_token="test",
@@ -100,7 +138,6 @@ def app(tmp_path, track_b_db):
         db_path=tmp_path / "test.db",
         admin_token="test-admin-token",
     )
-    from track_a.store import init_db
     init_db(settings.db_path)
     return create_app(settings)
 
@@ -108,6 +145,7 @@ def app(tmp_path, track_b_db):
 @pytest.fixture()
 def client(app):
     from fastapi.testclient import TestClient
+
     return TestClient(app)
 
 
@@ -132,7 +170,6 @@ class TestDashboardHome:
         assert resp.status_code == 401
 
     def test_home_shows_escalation_counts(self, client: TestClient, app) -> None:
-        from track_a.store import log_escalation_request
         log_escalation_request(app.state.settings.db_path, "111", "msg1")
         resp = client.get("/admin/dashboard", headers=_auth())
         assert resp.status_code == 200
@@ -169,9 +206,7 @@ class TestChangesView:
         assert "Change Log" in resp.text
 
     def test_changes_filter_by_action(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/changes?action=create", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/changes?action=create", headers=_auth())
         assert resp.status_code == 200
         # Filter form should show "create" selected
         assert 'value="create"' in resp.text
@@ -201,9 +236,7 @@ class TestFailuresView:
 
 class TestEscalationsRedirect:
     def test_redirects_to_admin(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/escalations", headers=_auth(), follow_redirects=False
-        )
+        resp = client.get("/admin/dashboard/escalations", headers=_auth(), follow_redirects=False)
         assert resp.status_code == 303
         assert resp.headers["location"] == "/admin"
 
@@ -245,18 +278,35 @@ class TestChangeLogQueries:
 
         log = InMemoryChangeLog()
         import time
+
         log._time = lambda: time.time()
 
         import asyncio
 
-        asyncio.run(log.record_change(ChangeRow(
-            change_id="c1", owner_id="o1", content_type="job",
-            action="create", before=None, after={"title": "T"},
-        )))
-        asyncio.run(log.record_change(ChangeRow(
-            change_id="c2", owner_id="o2", content_type="announcement",
-            action="update", before={}, after={},
-        )))
+        asyncio.run(
+            log.record_change(
+                ChangeRow(
+                    change_id="c1",
+                    owner_id="o1",
+                    content_type="job",
+                    action="create",
+                    before=None,
+                    after={"title": "T"},
+                )
+            )
+        )
+        asyncio.run(
+            log.record_change(
+                ChangeRow(
+                    change_id="c2",
+                    owner_id="o2",
+                    content_type="announcement",
+                    action="update",
+                    before={},
+                    after={},
+                )
+            )
+        )
 
         # Filter by owner
         result = asyncio.run(log.list_changes(owner_id="o1"))
@@ -273,18 +323,36 @@ class TestChangeLogQueries:
 
         log = InMemoryChangeLog()
         import time
+
         log._time = lambda: time.time()
 
         import asyncio
 
-        asyncio.run(log.record_change(ChangeRow(
-            change_id="c1", owner_id="o1", content_type="job",
-            action="create", before=None, after={},
-        )))
-        asyncio.run(log.record_change(ChangeRow(
-            change_id="c2", owner_id="o1", content_type="job",
-            action="undo", before={}, after=None, undo_of="c1",
-        )))
+        asyncio.run(
+            log.record_change(
+                ChangeRow(
+                    change_id="c1",
+                    owner_id="o1",
+                    content_type="job",
+                    action="create",
+                    before=None,
+                    after={},
+                )
+            )
+        )
+        asyncio.run(
+            log.record_change(
+                ChangeRow(
+                    change_id="c2",
+                    owner_id="o1",
+                    content_type="job",
+                    action="undo",
+                    before={},
+                    after=None,
+                    undo_of="c1",
+                )
+            )
+        )
 
         counts = asyncio.run(log.count_by_action())
         assert counts["create"] == 1
@@ -298,33 +366,25 @@ class TestChangeLogQueries:
 
 class TestSiteDetail:
     def test_site_detail_renders(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/sites/owner1", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/sites/owner1", headers=_auth())
         assert resp.status_code == 200
         assert "owner1" in resp.text
         assert "Change History" in resp.text
 
     def test_site_detail_shows_changes(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/sites/owner1", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/sites/owner1", headers=_auth())
         assert resp.status_code == 200
         # owner1 has two changes in the fixture
         assert "ch-001" in resp.text or "ch-002" in resp.text
 
     def test_site_detail_shows_site_info(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/sites/owner1", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/sites/owner1", headers=_auth())
         assert resp.status_code == 200
         assert "example.com" in resp.text
         assert "active" in resp.text
 
     def test_site_detail_no_site_record(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/sites/unknown-owner", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/sites/unknown-owner", headers=_auth())
         assert resp.status_code == 200
         assert "No site record found" in resp.text
 
@@ -354,9 +414,7 @@ class TestSiteDetail:
         assert "History →" in resp.text or "sites/owner1" in resp.text
 
     def test_site_detail_shows_action_stats(self, client: TestClient) -> None:
-        resp = client.get(
-            "/admin/dashboard/sites/owner1", headers=_auth()
-        )
+        resp = client.get("/admin/dashboard/sites/owner1", headers=_auth())
         assert resp.status_code == 200
         # Should show action counts: owner1 has 1 create, 1 update
         assert "create" in resp.text.lower()
@@ -410,8 +468,7 @@ class TestSiteDetail:
     def test_site_detail_date_filter_no_results(self, client: TestClient) -> None:
         """Date range that matches nothing shows empty state."""
         resp = client.get(
-            "/admin/dashboard/sites/owner1"
-            "?date_from=2026-08-21T00:00:00",
+            "/admin/dashboard/sites/owner1?date_from=2026-08-21T00:00:00",
             headers=_auth(),
         )
         assert resp.status_code == 200

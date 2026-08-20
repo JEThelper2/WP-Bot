@@ -13,11 +13,14 @@ where Docker exists (test_onboarding_sandbox.py).
 
 from __future__ import annotations
 
+from integration_harness import OWNER, SITE, build_world, send
+from wp_fake import FakeWordPress
+
 from track_a.onboarding import (
     ONBOARD_CANCELLED,
+    ONBOARD_INSUFFICIENT_PERMISSIONS,
     ONBOARD_INVALID_CREDENTIALS,
     ONBOARD_INVALID_URL,
-    ONBOARD_INSUFFICIENT_PERMISSIONS,
     ONBOARD_NOT_WORDPRESS,
     ONBOARD_STEP_APP_PASSWORD,
     ONBOARD_STEP_URL,
@@ -25,9 +28,6 @@ from track_a.onboarding import (
     ONBOARD_SUCCESS,
     ONBOARD_UNREACHABLE,
 )
-
-from integration_harness import OWNER, SITE, build_world, send
-from wp_fake import FakeWordPress
 
 
 def complete_conversation(world, *, password: str = "app-pass") -> None:
@@ -98,9 +98,7 @@ def test_onboarding_invalid_credentials_then_retry(tmp_path):
 
 
 def test_onboarding_insufficient_permissions(tmp_path):
-    fake = FakeWordPress(
-        expected_auth=("editor", "app-pass"), user_roles=("subscriber",)
-    )
+    fake = FakeWordPress(expected_auth=("editor", "app-pass"), user_roles=("subscriber",))
     world = build_world(tmp_path, fake=fake, seed_site=False)
 
     complete_conversation(world)

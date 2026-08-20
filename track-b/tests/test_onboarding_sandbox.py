@@ -23,6 +23,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from integration_harness import OWNER, build_world, send
 
 from track_a.onboarding import (
     ONBOARD_INVALID_CREDENTIALS,
@@ -30,8 +31,6 @@ from track_a.onboarding import (
     ONBOARD_SUCCESS,
     ONBOARD_UNREACHABLE,
 )
-
-from integration_harness import OWNER, build_world, send
 
 _SANDBOX_PASSWORD_FILE = (
     Path(__file__).resolve().parent.parent / "wp-sandbox" / "_output" / "app-password.txt"

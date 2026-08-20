@@ -66,9 +66,9 @@ ONBOARD_STEP_APP_PASSWORD = (
 ONBOARD_SUCCESS = (
     "You're all set — {url} is connected and ready. "
     "Try asking me: "
-    "\"Post a job: part-time barista, $18/hr\", "
-    "\"Add an announcement: closed July 4th\", or "
-    "\"Change my hours to 9-6\". "
+    '"Post a job: part-time barista, $18/hr", '
+    '"Add an announcement: closed July 4th", or '
+    '"Change my hours to 9-6". '
     "I'll always confirm with you before anything goes live."
 )
 
@@ -101,8 +101,7 @@ ONBOARD_INSUFFICIENT_PERMISSIONS = (
 )
 
 ONBOARD_CANCELLED = (
-    "No problem — setup cancelled. Message me 'set up my website' anytime "
-    "to connect your site."
+    "No problem — setup cancelled. Message me 'set up my website' anytime to connect your site."
 )
 
 # ---------------------------------------------------------------------------
@@ -110,20 +109,45 @@ ONBOARD_CANCELLED = (
 # ---------------------------------------------------------------------------
 
 _TRIGGER_EXACT = {
-    "onboard", "onboarding", "setup", "set up", "get started", "get me started",
-    "sign me up", "sign up", "connect website", "connect my website",
-    "connect my site", "connect my wordpress", "connect wordpress",
-    "add my website", "add my site", "add my wordpress", "add wordpress",
-    "start setup", "begin setup", "connect my blog",
+    "onboard",
+    "onboarding",
+    "setup",
+    "set up",
+    "get started",
+    "get me started",
+    "sign me up",
+    "sign up",
+    "connect website",
+    "connect my website",
+    "connect my site",
+    "connect my wordpress",
+    "connect wordpress",
+    "add my website",
+    "add my site",
+    "add my wordpress",
+    "add wordpress",
+    "start setup",
+    "begin setup",
+    "connect my blog",
 }
 
 _TRIGGER_PREFIXES = (
-    "set up my", "connect my", "add my site", "add my website",
-    "add my wordpress", "get my website",
+    "set up my",
+    "connect my",
+    "add my site",
+    "add my website",
+    "add my wordpress",
+    "get my website",
 )
 
 _CANCEL_WORDS = {
-    "cancel", "stop", "quit", "abort", "never mind", "forget it", "skip it",
+    "cancel",
+    "stop",
+    "quit",
+    "abort",
+    "never mind",
+    "forget it",
+    "skip it",
 }
 
 
@@ -263,9 +287,7 @@ class OnboardingFlow:
         # stage == "app_password": submit to B5.
         return await self._submit(owner_id, state, text)
 
-    async def _submit(
-        self, owner_id: str, state: OnboardState, app_password: str
-    ) -> RouteOutcome:
+    async def _submit(self, owner_id: str, state: OnboardState, app_password: str) -> RouteOutcome:
         try:
             result = await self.trackb.onboard_site(
                 site_url=state.site_url or "",
@@ -275,9 +297,7 @@ class OnboardingFlow:
             )
         except Exception as exc:
             # Transport failure: same plain-language path as unreachable.
-            logger.warning(
-                "onboarding call failed for owner %s: %s", owner_id, exc
-            )
+            logger.warning("onboarding call failed for owner %s: %s", owner_id, exc)
             state.stage = "url"
             return RouteOutcome(
                 branch="onboarding",

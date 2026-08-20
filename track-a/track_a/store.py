@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _SCHEMA = """
@@ -62,21 +62,15 @@ def _connect(db_path: Path) -> sqlite3.Connection:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Add columns added after the original schema (dev-stage migration)."""
-    existing = {
-        row["name"] for row in conn.execute("PRAGMA table_info(inbound_messages)")
-    }
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(inbound_messages)")}
     if "message_text" not in existing:
         conn.execute("ALTER TABLE inbound_messages ADD COLUMN message_text TEXT")
     if "processing_status" not in existing:
         conn.execute(
-            "ALTER TABLE inbound_messages "
-            "ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'new'"
+            "ALTER TABLE inbound_messages ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'new'"
         )
     # Escalation requests migrations
-    esc_cols = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(escalation_requests)")
-    }
+    esc_cols = {row["name"] for row in conn.execute("PRAGMA table_info(escalation_requests)")}
     if "notes" not in esc_cols:
         conn.execute("ALTER TABLE escalation_requests ADD COLUMN notes TEXT")
     if "updated_at" not in esc_cols:
@@ -106,7 +100,7 @@ def insert_message(
     Returns the new row id, or None if it was a duplicate delivery
     (same wam_id already logged).
     """
-    received_at = datetime.now(timezone.utc).isoformat()
+    received_at = datetime.now(UTC).isoformat()
     with _connect(db_path) as conn:
         try:
             cur = conn.execute(
@@ -133,19 +127,14 @@ def insert_message(
 
 def get_message(db_path: Path, row_id: int) -> dict | None:
     with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM inbound_messages WHERE id = ?", (row_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM inbound_messages WHERE id = ?", (row_id,)).fetchone()
     return dict(row) if row else None
 
 
-def update_processing(
-    db_path: Path, row_id: int, *, status: str, message_text: str | None
-) -> None:
+def update_processing(db_path: Path, row_id: int, *, status: str, message_text: str | None) -> None:
     with _connect(db_path) as conn:
         conn.execute(
-            "UPDATE inbound_messages SET processing_status = ?, message_text = ? "
-            "WHERE id = ?",
+            "UPDATE inbound_messages SET processing_status = ?, message_text = ? WHERE id = ?",
             (status, message_text, row_id),
         )
 
@@ -170,11 +159,9 @@ def count_messages(db_path: Path) -> int:
     return int(row["n"])
 
 
-def log_escalation_request(
-    db_path: Path, owner_phone: str, original_message: str | None
-) -> int:
+def log_escalation_request(db_path: Path, owner_phone: str, original_message: str | None) -> int:
     """Record an escalation the owner accepted (PRD §10). Returns row id."""
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     with _connect(db_path) as conn:
         cur = conn.execute(
             """
@@ -227,9 +214,7 @@ def count_open_escalations(db_path: Path) -> int:
 def get_escalation_request(db_path: Path, row_id: int) -> dict | None:
     """Fetch a single escalation request by id."""
     with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM escalation_requests WHERE id = ?", (row_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM escalation_requests WHERE id = ?", (row_id,)).fetchone()
     return dict(row) if row else None
 
 
@@ -244,20 +229,16 @@ def update_escalation_status(
 
     Returns True if the row existed and was updated.
     """
-    updated_at = datetime.now(timezone.utc).isoformat()
+    updated_at = datetime.now(UTC).isoformat()
     with _connect(db_path) as conn:
         if notes is not None:
             cur = conn.execute(
-                "UPDATE escalation_requests "
-                "SET status = ?, notes = ?, updated_at = ? "
-                "WHERE id = ?",
+                "UPDATE escalation_requests SET status = ?, notes = ?, updated_at = ? WHERE id = ?",
                 (status, notes, updated_at, row_id),
             )
         else:
             cur = conn.execute(
-                "UPDATE escalation_requests "
-                "SET status = ?, updated_at = ? "
-                "WHERE id = ?",
+                "UPDATE escalation_requests SET status = ?, updated_at = ? WHERE id = ?",
                 (status, updated_at, row_id),
             )
         return cur.rowcount > 0

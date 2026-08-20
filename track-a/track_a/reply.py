@@ -61,10 +61,7 @@ class WhatsAppReplySender:
             )
             return
 
-        url = (
-            f"https://graph.facebook.com/{self.api_version}/"
-            f"{self.phone_number_id}/messages"
-        )
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
         payload: dict[str, Any] = {
             "messaging_product": "whatsapp",
             "to": to,

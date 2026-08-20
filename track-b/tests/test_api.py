@@ -11,15 +11,15 @@ import asyncio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from shared_contract import CONTRACT_VERSION, validate_result
+from wp_fake import SITE, FakeWordPress
 
+from shared_contract import CONTRACT_VERSION, validate_result
 from track_b.allowlist import PILOT_SITE_CONFIG
 from track_b.changelog import InMemoryChangeLog
 from track_b.main import TrackBServices, create_app
 from track_b.onboarding import OnboardedSiteStore
 from track_b.pending import InMemoryPendingStore
 from track_b.wordpress import WordPressClient
-from wp_fake import SITE, FakeWordPress
 
 OWNER = "15551234567"
 USER = "editor"
@@ -89,7 +89,7 @@ def test_full_lifecycle_stage_resolve_write_undo(client_with):
     assert pending_change_id.startswith("pc-")
 
     # 2. resolve YES -> write through B2/B1, logged by B4
-    resolved = client.post(f"/intent?decision=yes", json=make_intent())
+    resolved = client.post("/intent?decision=yes", json=make_intent())
     assert resolved.status_code == 200
     body = resolved.json()
     assert_valid_result(body)
@@ -176,9 +176,7 @@ def test_disabled_content_type_rejected_at_write(client_with):
     fake = FakeWordPress(expected_auth=(USER, APP_PASSWORD))
     client = client_with(fake)
 
-    image_intent = make_intent(
-        "update", "image", {"slot": "logo", "media_base64": "AA=="}
-    )
+    image_intent = make_intent("update", "image", {"slot": "logo", "media_base64": "AA=="})
     staged = client.post("/intent", json=image_intent)
     assert staged.json()["status"] == "needs_confirmation"
 

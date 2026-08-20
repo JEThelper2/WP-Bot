@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 logger = logging.getLogger("track_b.changelog")
@@ -53,7 +53,7 @@ class ChangeRow:
         if ts is None:
             return 0.0
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+            ts = ts.replace(tzinfo=UTC)
         return ts.timestamp()
 
 
@@ -98,7 +98,7 @@ class InMemoryChangeLog:
             after=row.after,
             live_url=row.live_url,
             undo_of=row.undo_of,
-            created_at=datetime.fromtimestamp(self._time(), tz=timezone.utc),
+            created_at=datetime.fromtimestamp(self._time(), tz=UTC),
         )
         self._seq += 1
         self._rows.append((self._seq, stamped))
@@ -177,7 +177,7 @@ class PostgresChangeLog:
         self._pool = pool
 
     @classmethod
-    async def connect(cls, dsn: str) -> "PostgresChangeLog":
+    async def connect(cls, dsn: str) -> PostgresChangeLog:
         import asyncpg
 
         pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
@@ -231,9 +231,7 @@ class PostgresChangeLog:
 
     async def get(self, change_id: str) -> ChangeRow | None:
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT * FROM change_log WHERE change_id = $1", change_id
-            )
+            row = await conn.fetchrow("SELECT * FROM change_log WHERE change_id = $1", change_id)
         return _row_from_record(row) if row else None
 
 

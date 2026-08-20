@@ -56,9 +56,7 @@ class TestEscalationList:
         assert "Escalation Requests" in resp.text
         assert "No escalation requests found" in resp.text
 
-    def test_escalation_appears_in_list(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_escalation_appears_in_list(self, client: TestClient, db_path) -> None:
         """Escalation logged by Track A shows up in the admin view."""
         log_escalation_request(db_path, "15551234567", "Redesign my homepage")
         log_escalation_request(db_path, "15559876543", "Add a new page")
@@ -70,14 +68,13 @@ class TestEscalationList:
         assert "15559876543" in resp.text
         assert "Add a new page" in resp.text
 
-    def test_status_filter_works(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_status_filter_works(self, client: TestClient, db_path) -> None:
         """Filtering by status shows only matching rows."""
         log_escalation_request(db_path, "111", "msg1")
         row_id = log_escalation_request(db_path, "222", "msg2")
         # Update one to in_progress
         from track_a.store import update_escalation_status
+
         update_escalation_status(db_path, row_id, status="in_progress")
 
         # All
@@ -95,9 +92,7 @@ class TestEscalationList:
         assert "222" in resp.text
         assert "111" not in resp.text
 
-    def test_open_count_displays_correctly(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_open_count_displays_correctly(self, client: TestClient, db_path) -> None:
         """Open count shows number of 'new' status requests."""
         log_escalation_request(db_path, "111", "msg1")
         log_escalation_request(db_path, "222", "msg2")
@@ -134,9 +129,7 @@ class TestEscalationDetail:
 
 
 class TestStatusUpdate:
-    def test_update_status_persists(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_update_status_persists(self, client: TestClient, db_path) -> None:
         """Updating status via the form persists to the database."""
         row_id = log_escalation_request(db_path, "111", "msg")
 
@@ -150,15 +143,14 @@ class TestStatusUpdate:
 
         # Verify persistence
         from track_a.store import get_escalation_request
+
         esc = get_escalation_request(db_path, row_id)
         assert esc is not None
         assert esc["status"] == "in_progress"
         assert esc["notes"] == "Looking into it"
         assert esc["updated_at"] is not None
 
-    def test_update_to_resolved(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_update_to_resolved(self, client: TestClient, db_path) -> None:
         row_id = log_escalation_request(db_path, "222", "msg2")
         client.post(
             f"/admin/{row_id}/update",
@@ -167,6 +159,7 @@ class TestStatusUpdate:
             follow_redirects=False,
         )
         from track_a.store import get_escalation_request
+
         esc = get_escalation_request(db_path, row_id)
         assert esc["status"] == "resolved"
 
@@ -196,9 +189,7 @@ class TestStatusUpdate:
 
 
 class TestOpenCount:
-    def test_open_count_after_status_change(
-        self, client: TestClient, db_path
-    ) -> None:
+    def test_open_count_after_status_change(self, client: TestClient, db_path) -> None:
         """Open count decreases when a request is resolved."""
         log_escalation_request(db_path, "111", "msg1")
         log_escalation_request(db_path, "222", "msg2")
@@ -225,9 +216,7 @@ class TestOpenCount:
         assert data["open"] == 2
         assert data["total"] == 3
 
-    def test_api_count_without_auth_rejected(
-        self, client: TestClient
-    ) -> None:
+    def test_api_count_without_auth_rejected(self, client: TestClient) -> None:
         resp = client.get("/admin/api/count")
         assert resp.status_code == 401
 

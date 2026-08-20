@@ -18,7 +18,6 @@ config file, or log in plaintext. This module provides:
 
 from __future__ import annotations
 
-import base64
 import logging
 import os
 import re
@@ -111,8 +110,7 @@ class CredentialStore:
         """Return (username, decrypted app password), or None if unknown."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT username, encrypted_password FROM site_credentials "
-                "WHERE site_url = ?",
+                "SELECT username, encrypted_password FROM site_credentials WHERE site_url = ?",
                 (site_url,),
             ).fetchone()
         if row is None:
@@ -121,9 +119,7 @@ class CredentialStore:
 
     def delete_credentials(self, site_url: str) -> None:
         with self._connect() as conn:
-            conn.execute(
-                "DELETE FROM site_credentials WHERE site_url = ?", (site_url,)
-            )
+            conn.execute("DELETE FROM site_credentials WHERE site_url = ?", (site_url,))
 
     def list_sites(self) -> list[str]:
         with self._connect() as conn:

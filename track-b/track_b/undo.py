@@ -95,9 +95,7 @@ async def undo(
     """Undo the owner's most recent change, or explain why not."""
     row = await changelog.most_recent(owner_id)
     if row is None:
-        return UndoResult(
-            "nothing_to_undo", "no changes found to undo for this owner"
-        )
+        return UndoResult("nothing_to_undo", "no changes found to undo for this owner")
 
     if now_fn() - row.timestamp > window:
         hours = window // 3600
@@ -132,9 +130,7 @@ async def undo(
     try:
         stamped = await changelog.record_change(undo_row)
     except Exception as exc:
-        logger.error(
-            "undo applied but could not be logged for owner %s: %s", owner_id, exc
-        )
+        logger.error("undo applied but could not be logged for owner %s: %s", owner_id, exc)
         return UndoResult(
             "failed",
             "the undo was applied but could not be logged — treat as not "
@@ -188,8 +184,7 @@ def _post_id(state: dict[str, Any] | None, row: ChangeRow, what: str) -> int:
     post_id = (state or {}).get("post_id")
     if post_id is None:
         raise WordPressError(
-            f"cannot undo change {row.change_id}: no post id in the logged "
-            f"state ({what})"
+            f"cannot undo change {row.change_id}: no post id in the logged state ({what})"
         )
     return int(post_id)
 

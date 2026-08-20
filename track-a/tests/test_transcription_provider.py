@@ -10,7 +10,6 @@ Tests cover:
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,13 +18,11 @@ from track_a.media import MediaPayload
 from track_a.transcribe import (
     GroqTranscriptionProvider,
     StubTranscriber,
-    Transcriber,
     Transcription,
     WhisperTranscriber,
     get_transcription_provider,
     register_transcription_provider,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,17 +71,13 @@ class TestGroqTranscriptionProvider:
         with patch.dict("os.environ", {}, clear=True):
             provider = GroqTranscriptionProvider(api_key=None)
             with pytest.raises(ValueError, match="GROQ_API_KEY"):
-                asyncio.run(
-                    provider.transcribe(_audio_payload())
-                )
+                asyncio.run(provider.transcribe(_audio_payload()))
 
     def test_uses_correct_model(self) -> None:
         assert GroqTranscriptionProvider.DEFAULT_MODEL == "whisper-large-v3-turbo"
 
     def test_custom_model_override(self) -> None:
-        provider = GroqTranscriptionProvider(
-            api_key="test", model="whisper-large-v3"
-        )
+        provider = GroqTranscriptionProvider(api_key="test", model="whisper-large-v3")
         assert provider._model == "whisper-large-v3"
 
     def test_calls_correct_api(self) -> None:
@@ -96,9 +89,7 @@ class TestGroqTranscriptionProvider:
             MagicMock(no_speech_prob=0.05),
             MagicMock(no_speech_prob=0.1),
         ]
-        mock_client.audio.transcriptions.create = AsyncMock(
-            return_value=mock_response
-        )
+        mock_client.audio.transcriptions.create = AsyncMock(return_value=mock_response)
 
         provider = GroqTranscriptionProvider(api_key="test-key", client=mock_client)
         payload = _audio_payload(content=b"audio-bytes", mime_type="audio/ogg")
@@ -121,9 +112,7 @@ class TestGroqTranscriptionProvider:
         mock_response = MagicMock()
         mock_response.text = ""
         mock_response.segments = []
-        mock_client.audio.transcriptions.create = AsyncMock(
-            return_value=mock_response
-        )
+        mock_client.audio.transcriptions.create = AsyncMock(return_value=mock_response)
 
         provider = GroqTranscriptionProvider(api_key="test-key", client=mock_client)
         result = asyncio.run(provider.transcribe(_audio_payload()))
@@ -140,9 +129,7 @@ class TestGroqTranscriptionProvider:
         mock_response.segments = [
             MagicMock(no_speech_prob=0.8),  # Above threshold (0.6)
         ]
-        mock_client.audio.transcriptions.create = AsyncMock(
-            return_value=mock_response
-        )
+        mock_client.audio.transcriptions.create = AsyncMock(return_value=mock_response)
 
         provider = GroqTranscriptionProvider(api_key="test-key", client=mock_client)
         result = asyncio.run(provider.transcribe(_audio_payload()))
@@ -181,6 +168,7 @@ class TestGetTranscriptionProvider:
 
     def test_register_provider(self) -> None:
         """Third-party providers can register themselves."""
+
         class CustomTranscriber:
             async def transcribe(self, payload: MediaPayload) -> Transcription:
                 return Transcription(text="custom", confidence=1.0)
@@ -192,6 +180,7 @@ class TestGetTranscriptionProvider:
 
         # Clean up
         from track_a.transcribe import _TRANSCRIPTION_PROVIDERS
+
         del _TRANSCRIPTION_PROVIDERS["custom"]
 
 
@@ -206,9 +195,7 @@ class TestProviderSwap:
     def test_pipeline_works_with_fake_transcriber(self) -> None:
         """The MessageProcessor works identically with a non-Groq transcriber."""
         script = {
-            "media-1": Transcription(
-                text="change my hours to 9-6", confidence=0.92, is_voice=True
-            ),
+            "media-1": Transcription(text="change my hours to 9-6", confidence=0.92, is_voice=True),
         }
         transcriber = FakeTranscriber(script)
         payload = _audio_payload(media_id="media-1")
@@ -225,6 +212,7 @@ class TestProviderSwap:
 
     def test_provider_protocol_compliance(self) -> None:
         """Any class with transcribe() is substitutable."""
+
         class MinimalTranscriber:
             async def transcribe(self, payload: MediaPayload) -> Transcription:
                 return Transcription(text="minimal", confidence=0.5)
@@ -261,7 +249,8 @@ class TestGroqTranscriptionLive:
         freq = 440.0
         frames = b"".join(
             struct.pack(
-                "<h", int(12000 * __import__("math").sin(2 * __import__("math").pi * freq * i / rate))
+                "<h",
+                int(12000 * __import__("math").sin(2 * __import__("math").pi * freq * i / rate)),
             )
             for i in range(int(rate * duration))
         )
@@ -274,9 +263,7 @@ class TestGroqTranscriptionLive:
         wav_bytes = buf.getvalue()
 
         provider = GroqTranscriptionProvider()
-        payload = MediaPayload(
-            content=wav_bytes, mime_type="audio/wav", media_id="live-test"
-        )
+        payload = MediaPayload(content=wav_bytes, mime_type="audio/wav", media_id="live-test")
         result = asyncio.run(provider.transcribe(payload))
         # A sine wave won't produce meaningful text, but it should not crash
         assert isinstance(result.text, str)

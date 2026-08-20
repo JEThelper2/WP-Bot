@@ -233,9 +233,7 @@ def test_multiple_messages_in_one_delivery_are_all_logged(client: TestClient, ap
     assert count_messages(db_path(app)) == 2
 
 
-def test_delivery_receipt_statuses_are_ignored_but_answered_200(
-    client: TestClient, app
-) -> None:
+def test_delivery_receipt_statuses_are_ignored_but_answered_200(client: TestClient, app) -> None:
     payload = {
         "object": "whatsapp_business_account",
         "entry": [

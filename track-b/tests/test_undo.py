@@ -11,13 +11,13 @@ import asyncio
 
 import httpx
 import pytest
-from shared_contract import CONTRACT_VERSION
+from wp_fake import SITE, FakeWordPress
 
+from shared_contract import CONTRACT_VERSION
 from track_b.allowlist import PILOT_SITE_CONFIG, apply_intent
 from track_b.changelog import InMemoryChangeLog
 from track_b.undo import UNDO_WINDOW_SECONDS, undo
 from track_b.wordpress import WordPressClient
-from wp_fake import SITE, FakeWordPress
 
 OWNER = "15551234567"
 

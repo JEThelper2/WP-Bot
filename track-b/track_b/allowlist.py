@@ -26,7 +26,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from shared_contract import CONTRACT_VERSION, ContractValidationError, validate_intent, validate_result
+from shared_contract import (
+    CONTRACT_VERSION,
+    ContractValidationError,
+    validate_intent,
+    validate_result,
+)
 
 from .changelog import ChangeLog, ChangeRow
 from .content_types import get_handler
@@ -180,9 +185,7 @@ def validate_intent_for_site(intent: dict[str, Any], config: SiteConfig) -> None
     content_type = intent["content_type"]
     mapping = config.mapping_for(content_type)
     if mapping is None or not mapping.enabled:
-        raise IntentNotAllowedError(
-            f"content_type {content_type!r} is not enabled for this site"
-        )
+        raise IntentNotAllowedError(f"content_type {content_type!r} is not enabled for this site")
 
     # 3. Every field must be in the site's mapping for that content type.
     unknown = [f for f in intent["fields"] if f not in mapping.allowed_fields]
@@ -240,9 +243,7 @@ async def apply_intent(
     try:
         record = await _dispatch(intent, client)
     except (WordPressError, IntentNotAllowedError) as exc:
-        logger.warning(
-            "WordPress write failed for owner %s: %s", intent["owner_id"], exc
-        )
+        logger.warning("WordPress write failed for owner %s: %s", intent["owner_id"], exc)
         return _failed_result(str(exc))
 
     if changelog is not None:
@@ -291,7 +292,5 @@ async def _dispatch(intent: dict[str, Any], client: WordPressClient) -> Any:
     content_type = intent["content_type"]
     handler = get_handler(content_type)
     if handler is None:
-        raise IntentNotAllowedError(
-            f"content_type {content_type!r} is not supported"
-        )
+        raise IntentNotAllowedError(f"content_type {content_type!r} is not supported")
     return await handler.apply(intent, client)

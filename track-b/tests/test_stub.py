@@ -2,8 +2,8 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from shared_contract import CONTRACT_VERSION, validate_result
 
+from shared_contract import CONTRACT_VERSION, validate_result
 from track_b.stub import create_stub_app as create_app
 
 

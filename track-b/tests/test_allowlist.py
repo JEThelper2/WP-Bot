@@ -11,20 +11,20 @@ import asyncio
 
 import httpx
 import pytest
-from shared_contract import CONTRACT_VERSION, validate_result
+from wp_fake import SITE, FakeWordPress
 
+from shared_contract import CONTRACT_VERSION, validate_result
 from track_b.allowlist import (
     PILOT_SITE_CONFIG,
+    ContentTypeMapping,
     IntentNotAllowedError,
     SiteConfig,
-    ContentTypeMapping,
     apply_intent,
     get_site_config,
     register_site_config,
     validate_intent_for_site,
 )
 from track_b.wordpress import WordPressClient
-from wp_fake import SITE, FakeWordPress
 
 OWNER = "15551234567"
 
@@ -138,7 +138,8 @@ def test_disabled_content_type_rejected_before_any_write(client_and_fake):
 def test_unknown_field_rejected(client_and_fake):
     client, fake = client_and_fake
     intent = make_intent(
-        "create", "job",
+        "create",
+        "job",
         {"title": "Barista", "description": "$18/hr", "prices": "$18"},
     )
 
@@ -186,7 +187,8 @@ def test_image_with_base64_passes_through_when_enabled(client_and_fake):
     client, fake = client_and_fake
     fake.has_muplugin = True
     intent = make_intent(
-        "update", "image",
+        "update",
+        "image",
         {"slot": "homepage_banner", "media_base64": "aGVsbG8="},  # "hello"
     )
 
@@ -202,9 +204,7 @@ def test_image_with_base64_passes_through_when_enabled(client_and_fake):
 
 def test_image_with_media_url_rejected_clear_error(client_and_fake):
     client, fake = client_and_fake
-    intent = make_intent(
-        "update", "image", {"slot": "logo", "media_url": "https://x/y.jpg"}
-    )
+    intent = make_intent("update", "image", {"slot": "logo", "media_url": "https://x/y.jpg"})
     result = run(apply_intent(intent, image_enabled_config(), client))
     assert result["status"] == "failed"
     assert "media_base64" in result["error_message"]

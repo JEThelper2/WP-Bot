@@ -44,7 +44,7 @@ class Settings:
     admin_token: str = ""
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         ai_provider = os.environ.get("AI_PROVIDER", "groq")
         ai_fallback = os.environ.get("AI_FALLBACK_PROVIDER", "")
         transcription_provider = os.environ.get("TRANSCRIPTION_PROVIDER", "groq")

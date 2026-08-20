@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 from fastapi.testclient import TestClient
+from wp_fake import SITE, FakeWordPress
 
 from track_a.config import Settings as ASettings
 from track_a.intent import IntentParseResult
@@ -22,18 +23,17 @@ from track_a.main import create_app as create_track_a_app
 from track_a.onboarding import OnboardingFlow
 from track_a.pipeline import MessageProcessor
 from track_a.routing import IntentRouter
-from track_a.store import init_db as track_a_init_db, log_escalation_request
+from track_a.store import init_db as track_a_init_db
+from track_a.store import log_escalation_request
 from track_a.trackb import TrackBClient
-
 from track_b.allowlist import PILOT_SITE_CONFIG
 from track_b.changelog import InMemoryChangeLog
 from track_b.config import Settings as BSettings
-from track_b.main import TrackBServices, create_app as create_track_b_app
+from track_b.main import TrackBServices
+from track_b.main import create_app as create_track_b_app
 from track_b.onboarding import OnboardedSiteStore, onboard_site
 from track_b.pending import InMemoryPendingStore
 from track_b.wordpress import WordPressClient
-
-from wp_fake import SITE, FakeWordPress
 
 OWNER = "15551234567"
 VERIFY_TOKEN = "integration-verify-token"
@@ -68,9 +68,7 @@ class ScriptedParser:
 
 
 def parse_intent(intent: dict) -> IntentParseResult:
-    return IntentParseResult(
-        status="intent", intent=intent, confidence=intent["confidence"]
-    )
+    return IntentParseResult(status="intent", intent=intent, confidence=intent["confidence"])
 
 
 @dataclass
@@ -138,9 +136,7 @@ def build_world(
                 site_url,
                 username,
                 app_password,
-                client=httpx.AsyncClient(
-                    transport=httpx.MockTransport(fake.handler)
-                ),
+                client=httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)),
             )
             return await onboard_site(
                 site_url,

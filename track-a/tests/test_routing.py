@@ -11,11 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from shared_contract import CONTRACT_VERSION
-
 from track_a import store
+from track_a.intent import IntentParseResult
 from track_a.routing import (
     CLARIFICATION_MAX_TURNS,
-    CONFIDENCE_THRESHOLD,
     ESCALATION_CONFIRM_REPLY,
     ESCALATION_DECLINE_REPLY,
     ESCALATION_REPLY_TEXT,
@@ -23,7 +22,6 @@ from track_a.routing import (
     STILL_UNSURE_REPLY_TEXT,
     IntentRouter,
 )
-from track_a.intent import IntentParseResult
 from track_a.session import SessionStore
 
 OWNER = "15551234567"
@@ -122,7 +120,8 @@ def parse_intent(intent: dict[str, Any]) -> IntentParseResult:
 
 def test_high_confidence_complete_job_goes_to_confirm():
     intent = make_intent(
-        "create", "job",
+        "create",
+        "job",
         {"title": "Part-time Barista", "description": "$18/hr downtown"},
         0.9,
     )
@@ -133,6 +132,7 @@ def test_high_confidence_complete_job_goes_to_confirm():
     assert outcome.intent == intent
     # A5: the confirmation prompt is composed and sent, awaiting YES/NO.
     from track_a.composer import compose_confirmation
+
     assert outcome.reply_text == compose_confirmation(intent)
     state = router.sessions.get(OWNER)
     assert state is not None and state.branch == "confirm"
@@ -186,7 +186,8 @@ def test_missing_announcement_body_asks_targeted():
 
 def test_low_confidence_complete_asks_confirmation_question():
     intent = make_intent(
-        "create", "job",
+        "create",
+        "job",
         {"title": "Cashier", "description": "evenings and weekends"},
         0.5,  # below threshold but fields complete
     )
@@ -198,9 +199,7 @@ def test_low_confidence_complete_asks_confirmation_question():
 
 
 def test_no_intent_at_all_asks_to_rephrase():
-    router = make_router(
-        ScriptedParser(IntentParseResult(status="low_confidence"))
-    )
+    router = make_router(ScriptedParser(IntentParseResult(status="low_confidence")))
     outcome = handle(router, "blah blah")
     assert outcome.branch == "clarify"
     assert outcome.reply_text == NO_INTENT_QUESTION
@@ -226,12 +225,11 @@ def test_image_delete_with_slot_confirms():
 
 
 def test_clarification_reenters_parse_with_context_and_resolves():
-    first = parse_intent(
-        make_intent("create", "job", {"description": "cash handling"}, 0.9)
-    )
+    first = parse_intent(make_intent("create", "job", {"description": "cash handling"}, 0.9))
     resolved = parse_intent(
         make_intent(
-            "create", "job",
+            "create",
+            "job",
             {"title": "Cashier", "description": "cash handling"},
             0.9,
         )
@@ -275,12 +273,8 @@ def test_clarification_loop_caps_at_max_turns():
 
 
 def test_mid_clarification_message_that_is_unsupported_escalates():
-    first = parse_intent(
-        make_intent("create", "job", {"description": "cash handling"}, 0.9)
-    )
-    parser = ScriptedParser(
-        first, IntentParseResult(status="unsupported", confidence=0.0)
-    )
+    first = parse_intent(make_intent("create", "job", {"description": "cash handling"}, 0.9))
+    parser = ScriptedParser(first, IntentParseResult(status="unsupported", confidence=0.0))
     router = make_router(parser)
 
     assert handle(router, "post a job").branch == "clarify"
@@ -305,9 +299,7 @@ def test_unsupported_sends_escalation_message():
 def test_escalation_yes_logs_request_to_store(tmp_path):
     db = tmp_path / "inbound.db"
     store.init_db(db)
-    router = make_router(
-        ScriptedParser(IntentParseResult(status="unsupported")), db=db
-    )
+    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
 
     assert handle(router, "add a new page").branch == "escalate"
     outcome = handle(router, "yes please")
@@ -327,9 +319,7 @@ def test_escalation_yes_logs_request_to_store(tmp_path):
 def test_escalation_no_clears_state_without_logging(tmp_path):
     db = tmp_path / "inbound.db"
     store.init_db(db)
-    router = make_router(
-        ScriptedParser(IntentParseResult(status="unsupported")), db=db
-    )
+    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
 
     handle(router, "add a new page")
     outcome = handle(router, "no thanks")
@@ -342,9 +332,7 @@ def test_escalation_no_clears_state_without_logging(tmp_path):
 def test_escalation_non_answer_repeats_the_offer(tmp_path):
     db = tmp_path / "inbound.db"
     store.init_db(db)
-    router = make_router(
-        ScriptedParser(IntentParseResult(status="unsupported")), db=db
-    )
+    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
 
     handle(router, "add a new page")
     outcome = handle(router, "what would it cost?")

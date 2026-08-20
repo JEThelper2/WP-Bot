@@ -188,14 +188,18 @@ result object's `before`/`after` need. Nothing returns bare success/fail.
 import asyncio
 from track_b.wordpress import WordPressClient
 
+
 async def main():
     client = WordPressClient(
-        "https://example.com", "editor", app_password  # from CredentialStore
+        "https://example.com",
+        "editor",
+        app_password,  # from CredentialStore
     )
     created = await client.create_post(
         "job", {"title": "Part-time Barista", "description": "$18/hr, downtown"}
     )
     print(created.after, created.live_url)
+
 
 asyncio.run(main())
 ```

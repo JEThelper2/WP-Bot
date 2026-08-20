@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from .composer import (
     CANCEL_REPLY_TEXT,
@@ -32,7 +33,7 @@ from .composer import (
     compose_undo_done,
     compose_undo_error,
 )
-from .intent import IntentParseResult, IntentParser
+from .intent import IntentParser, IntentParseResult
 from .reply import ReplySender
 from .session import SessionState, SessionStore
 from .trackb import TrackBClient, TrackBError
@@ -63,9 +64,7 @@ ESCALATION_CONFIRM_REPLY = (
     "Anything else I can help with?"
 )
 
-ESCALATION_DECLINE_REPLY = (
-    "No problem! If you change your mind, just ask. Anything else I can do?"
-)
+ESCALATION_DECLINE_REPLY = "No problem! If you change your mind, just ask. Anything else I can do?"
 
 # No intent at all (parse failed / empty): still targeted — names what the
 # bot CAN do rather than a bare "I didn't understand".
@@ -78,8 +77,8 @@ NO_INTENT_QUESTION = (
 # After CLARIFICATION_MAX_TURNS of unresolved back-and-forth.
 STILL_UNSURE_REPLY_TEXT = (
     "I'm having trouble understanding what you'd like to change. Could you "
-    "text me the request in one message, for example: \"post a job for a "
-    "part-time barista\" or \"change my hours to 9-6\"?"
+    'text me the request in one message, for example: "post a job for a '
+    'part-time barista" or "change my hours to 9-6"?'
 )
 
 # ---------------------------------------------------------------------------
@@ -132,9 +131,7 @@ def missing_required_fields(intent: dict[str, Any]) -> list[str]:
         missing: list[str] = []
         if not fields.get("slot"):
             missing.append("slot")
-        if action != "delete" and not fields.get("media_url") and not fields.get(
-            "media_base64"
-        ):
+        if action != "delete" and not fields.get("media_url") and not fields.get("media_base64"):
             # No separate field name; represent "the image itself" by the
             # media_url slot so the question reads naturally.
             missing.append("media_url")
@@ -163,18 +160,47 @@ def targeted_question(content_type: str | None, field: str | None) -> str:
 def _is_yes(text: str) -> bool:
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
-        "yes", "yep", "yeah", "y", "sure", "ok", "okay", "do it", "please",
-        "yes please", "please do", "please do it", "go ahead", "go for it",
-        "sounds good", "correct", "thats right", "absolutely", "for sure",
-        "yeah do it", "yes do it", "do that", "sure do",
+        "yes",
+        "yep",
+        "yeah",
+        "y",
+        "sure",
+        "ok",
+        "okay",
+        "do it",
+        "please",
+        "yes please",
+        "please do",
+        "please do it",
+        "go ahead",
+        "go for it",
+        "sounds good",
+        "correct",
+        "thats right",
+        "absolutely",
+        "for sure",
+        "yeah do it",
+        "yes do it",
+        "do that",
+        "sure do",
     } or normalized.startswith("yes")
 
 
 def _is_no(text: str) -> bool:
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
-        "no", "nope", "nah", "not now", "no thanks", "no thank you", "n",
-        "never mind", "skip it", "forget it", "no way", "not really",
+        "no",
+        "nope",
+        "nah",
+        "not now",
+        "no thanks",
+        "no thank you",
+        "n",
+        "never mind",
+        "skip it",
+        "forget it",
+        "no way",
+        "not really",
     } or normalized.startswith("no ")
 
 
@@ -182,9 +208,18 @@ def _is_undo(text: str) -> bool:
     """The UNDO command promised by the completion message."""
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
-        "undo", "undo it", "undo that", "undo this", "revert", "revert it",
-        "revert that", "take it back", "reverse it", "reverse that",
+        "undo",
+        "undo it",
+        "undo that",
+        "undo this",
+        "revert",
+        "revert it",
+        "revert that",
+        "take it back",
+        "reverse it",
+        "reverse that",
     }
+
 
 # ---------------------------------------------------------------------------
 # Routing
@@ -205,9 +240,7 @@ def _intent_summary(intent: dict[str, Any]) -> str:
     action = intent.get("action", "change")
     content_type = intent.get("content_type", "")
     fields = intent.get("fields") or {}
-    verb = {"create": "post", "update": "update", "delete": "remove"}.get(
-        action, "change"
-    )
+    verb = {"create": "post", "update": "update", "delete": "remove"}.get(action, "change")
 
     if content_type == "job" and fields.get("title"):
         return f"{verb} a job titled '{fields['title']}'"
@@ -305,9 +338,7 @@ class IntentRouter:
 
         # --- normal path: parse (with prior-exchange context if clarifying) ---
         context = (
-            _format_exchange(state)
-            if state is not None and state.branch == "clarify"
-            else None
+            _format_exchange(state) if state is not None and state.branch == "clarify" else None
         )
         parse = await self.parser.parse(message_text, owner_id, context=context)
         outcome = self._route(owner_id, parse, message_text, prior=state)
@@ -362,9 +393,7 @@ class IntentRouter:
             reason="confirmation_repeat",
         )
 
-    async def _stage_pending(
-        self, owner_id: str, outcome: RouteOutcome
-    ) -> RouteOutcome:
+    async def _stage_pending(self, owner_id: str, outcome: RouteOutcome) -> RouteOutcome:
         """Hold the confirmation-ready intent at Track B (B3) before asking.
 
         The confirmation prompt only goes out once the intent is staged and
@@ -403,29 +432,21 @@ class IntentRouter:
                 reply_text=compose_error(result.get("error_message")),
                 reason="stage_failed",
             )
-        logger.warning(
-            "unexpected stage result status %r for owner %s", status, owner_id
-        )
+        logger.warning("unexpected stage result status %r for owner %s", status, owner_id)
         return RouteOutcome(
             branch="confirm",
-            reply_text=compose_error(
-                f"Unexpected response from the publisher ({status!r})."
-            ),
+            reply_text=compose_error(f"Unexpected response from the publisher ({status!r})."),
             reason="unexpected_status",
         )
 
-    async def _discard_pending(
-        self, owner_id: str, intent: dict[str, Any]
-    ) -> None:
+    async def _discard_pending(self, owner_id: str, intent: dict[str, Any]) -> None:
         """Relay the NO to Track B so the staged pending is discarded."""
         try:
             await self.trackb.submit_intent(intent, decision="no")
         except Exception as exc:
             # The owner's intent is cleared locally regardless; Track B's
             # TTL expires the stale pending.
-            logger.warning(
-                "discard of pending intent failed for owner %s: %s", owner_id, exc
-            )
+            logger.warning("discard of pending intent failed for owner %s: %s", owner_id, exc)
 
     async def _handle_undo(self, owner_id: str) -> RouteOutcome:
         """Reply UNDO: reverse the owner's most recent change via Track B."""
@@ -450,9 +471,7 @@ class IntentRouter:
             reason="undo_failed",
         )
 
-    async def _submit_pending(
-        self, owner_id: str, intent: dict[str, Any]
-    ) -> RouteOutcome:
+    async def _submit_pending(self, owner_id: str, intent: dict[str, Any]) -> RouteOutcome:
         """YES: resolve the staged confirmation and reply per the result."""
         try:
             result = await self.trackb.submit_intent(intent, decision="yes")
@@ -529,7 +548,10 @@ class IntentRouter:
 
         if parse.status == "low_confidence" or parse.intent is None:
             return self._clarify(
-                owner_id, prior, asked_field=None, intent=None,
+                owner_id,
+                prior,
+                asked_field=None,
+                intent=None,
                 original_message=original_message,
                 reason="low_confidence_no_intent",
             )
@@ -539,9 +561,7 @@ class IntentRouter:
         if parse.confidence >= self.threshold and not missing:
             # Confirmation-ready: hold the intent and send the confirmation
             # prompt (A5) — the owner's YES/NO decides what happens next.
-            self.sessions.set(
-                owner_id, SessionState(branch="confirm", pending_intent=intent)
-            )
+            self.sessions.set(owner_id, SessionState(branch="confirm", pending_intent=intent))
             return RouteOutcome(
                 branch="confirm",
                 intent=intent,
@@ -551,12 +571,18 @@ class IntentRouter:
 
         if missing:
             return self._clarify(
-                owner_id, prior, asked_field=missing[0], intent=intent,
+                owner_id,
+                prior,
+                asked_field=missing[0],
+                intent=intent,
                 original_message=original_message,
                 reason=f"missing_field:{missing[0]}",
             )
         return self._clarify(
-            owner_id, prior, asked_field=None, intent=intent,
+            owner_id,
+            prior,
+            asked_field=None,
+            intent=intent,
             original_message=original_message,
             reason="low_confidence",
         )
@@ -571,9 +597,7 @@ class IntentRouter:
         original_message: str,
         reason: str,
     ) -> RouteOutcome:
-        turns = (
-            prior.turns if prior is not None and prior.branch == "clarify" else 0
-        ) + 1
+        turns = (prior.turns if prior is not None and prior.branch == "clarify" else 0) + 1
         if turns > CLARIFICATION_MAX_TURNS:
             self.sessions.clear(owner_id)
             return RouteOutcome(
@@ -618,9 +642,7 @@ class IntentRouter:
         if _is_yes(message_text):
             original = state.original_message or ""
             self.log_escalation(owner_id, original)
-            logger.info(
-                "escalation request logged for owner %s: %r", owner_id, original[:80]
-            )
+            logger.info("escalation request logged for owner %s: %r", owner_id, original[:80])
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="escalate",
@@ -647,9 +669,7 @@ class IntentRouter:
 # ---------------------------------------------------------------------------
 
 
-def _exchange(
-    prior: SessionState | None, latest_owner_message: str | None
-) -> list[dict[str, str]]:
+def _exchange(prior: SessionState | None, latest_owner_message: str | None) -> list[dict[str, str]]:
     """Return the bounded transcript, optionally appending the new message.
 
     Keeps only the last few turns so the LLM context stays short.

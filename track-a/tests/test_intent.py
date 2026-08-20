@@ -7,12 +7,12 @@ validation, and the unsupported/low-confidence routing.
 """
 
 import pytest
-from shared_contract import CONTRACT_VERSION, validate_intent
 
+from shared_contract import CONTRACT_VERSION, validate_intent
 from track_a.intent import (
     UNSUPPORTED_SENTINEL,
-    IntentParseResult,
     IntentParser,
+    IntentParseResult,
 )
 
 OWNER = "15551234567"

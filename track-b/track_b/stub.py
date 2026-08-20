@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import Body, FastAPI
 from fastapi.responses import JSONResponse
+
 from shared_contract import (
     CONTRACT_VERSION,
     ContractValidationError,

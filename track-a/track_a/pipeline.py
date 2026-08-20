@@ -119,8 +119,6 @@ class MessageProcessor:
                 transcription.confidence,
                 transcription.is_voice,
             )
-            return ProcessingOutcome(
-                status="low_confidence", reply_text=FALLBACK_REPLY_TEXT
-            )
+            return ProcessingOutcome(status="low_confidence", reply_text=FALLBACK_REPLY_TEXT)
 
         return ProcessingOutcome(status="transcribed", message_text=text)

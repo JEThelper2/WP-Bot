@@ -31,9 +31,8 @@ Provider selection happens at startup via `AI_PROVIDER` env var.
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from shared_contract import CONTRACT_VERSION, ContractValidationError, validate_intent
@@ -123,9 +122,7 @@ class IntentParser:
             user_prompt = f"{context}\n\nLatest message from the owner: {message_text}"
 
         try:
-            raw = await self.llm.complete_json(
-                system=SYSTEM_PROMPT, user=user_prompt
-            )
+            raw = await self.llm.complete_json(system=SYSTEM_PROMPT, user=user_prompt)
         except Exception as exc:
             logger.warning("LLM call failed; treating as low confidence: %s", exc)
             return IntentParseResult(status="low_confidence")
@@ -134,16 +131,12 @@ class IntentParser:
             return IntentParseResult(status="low_confidence", raw={"raw": raw})
 
         if raw.get("unsupported") is True:
-            return IntentParseResult(
-                status="unsupported", confidence=0.0, raw=raw
-            )
+            return IntentParseResult(status="unsupported", confidence=0.0, raw=raw)
 
         # The LLM must return its own confidence score; we never invent one.
         # Missing confidence = malformed output -> low confidence.
         if raw.get("confidence") is None:
-            logger.warning(
-                "LLM output missing confidence; treating as low confidence: %s", raw
-            )
+            logger.warning("LLM output missing confidence; treating as low confidence: %s", raw)
             return IntentParseResult(status="low_confidence", raw=raw)
 
         intent = self._build_intent(raw, owner_id)
@@ -153,8 +146,7 @@ class IntentParser:
             # The LLM produced something the contract rejects — equivalent to
             # low confidence: emit nothing, let A4 ask for clarification.
             logger.warning(
-                "LLM intent failed contract validation; treating as low "
-                "confidence: %s (raw=%s)",
+                "LLM intent failed contract validation; treating as low confidence: %s (raw=%s)",
                 exc,
                 raw,
             )

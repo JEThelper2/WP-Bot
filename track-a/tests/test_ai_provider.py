@@ -23,7 +23,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from track_a.ai_provider import (
-    AIProvider,
     FallbackChain,
     GeminiProvider,
     GroqProvider,
@@ -33,7 +32,6 @@ from track_a.ai_provider import (
     register_provider,
 )
 from track_a.intent import IntentParser, IntentParseResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,8 +84,12 @@ class SlowProvider:
 
     async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
         await asyncio.sleep(self._delay)
-        return {"action": "update", "content_type": "business_info",
-                "fields": {"hours": "9-6"}, "confidence": 0.9}
+        return {
+            "action": "update",
+            "content_type": "business_info",
+            "fields": {"hours": "9-6"},
+            "confidence": 0.9,
+        }
 
 
 class RateLimitedProvider:
@@ -128,9 +130,7 @@ class TestGroqProvider:
         with patch.dict("os.environ", {}, clear=True):
             provider = GroqProvider(api_key=None)
             with pytest.raises(ValueError, match="GROQ_API_KEY"):
-                asyncio.run(
-                    provider.complete_json(system="sys", user="msg")
-                )
+                asyncio.run(provider.complete_json(system="sys", user="msg"))
 
     def test_calls_correct_endpoint(self) -> None:
         """Verify the client is configured with Groq's base URL."""
@@ -138,15 +138,17 @@ class TestGroqProvider:
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = json.dumps(
-            {"action": "create", "content_type": "job",
-             "fields": {"title": "Test"}, "confidence": 0.9}
+            {
+                "action": "create",
+                "content_type": "job",
+                "fields": {"title": "Test"},
+                "confidence": 0.9,
+            }
         )
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         provider = GroqProvider(api_key="test-key", client=mock_client)
-        result = asyncio.run(
-            provider.complete_json(system="sys", user="msg")
-        )
+        asyncio.run(provider.complete_json(system="sys", user="msg"))
 
         # Verify the client was called with the right arguments
         mock_client.chat.completions.create.assert_called_once()
@@ -166,9 +168,7 @@ class TestGroqProvider:
         mock_response.choices[0].message.content = "{}"
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
-        provider = GroqProvider(
-            api_key="test-key", model="custom-model", client=mock_client
-        )
+        provider = GroqProvider(api_key="test-key", model="custom-model", client=mock_client)
         asyncio.run(provider.complete_json(system="sys", user="msg"))
 
         call_kwargs = mock_client.chat.completions.create.call_args
@@ -222,14 +222,16 @@ class TestRetryableProvider:
     def test_retries_on_malformed_json(self) -> None:
         """Non-dict output triggers a retry with corrective prompt."""
         bad_output = ["not", "a", "dict"]
-        good_output = {"action": "update", "content_type": "business_info",
-                       "fields": {"hours": "9-6"}, "confidence": 0.9}
+        good_output = {
+            "action": "update",
+            "content_type": "business_info",
+            "fields": {"hours": "9-6"},
+            "confidence": 0.9,
+        }
 
         inner = MalformedProvider(bad_output, good_output)
         provider = RetryableProvider(inner)
-        result = asyncio.run(
-            provider.complete_json(system="sys", user="msg")
-        )
+        result = asyncio.run(provider.complete_json(system="sys", user="msg"))
         assert result == good_output
         # The corrective prompt should have been appended
         assert inner._calls == 2
@@ -240,28 +242,25 @@ class TestRetryableProvider:
         provider = RetryableProvider(SlowProvider(delay=10.0))
         provider.TIMEOUT = 0.1  # Override for test
         with pytest.raises(asyncio.TimeoutError):
-            asyncio.run(
-                provider.complete_json(system="sys", user="msg")
-            )
+            asyncio.run(provider.complete_json(system="sys", user="msg"))
 
     def test_exception_propagates_after_retry(self) -> None:
         """If retry also fails, the original exception propagates."""
         provider = RetryableProvider(ExplodingProvider())
         with pytest.raises(RuntimeError, match="provider exploded"):
-            asyncio.run(
-                provider.complete_json(system="sys", user="msg")
-            )
+            asyncio.run(provider.complete_json(system="sys", user="msg"))
 
     def test_valid_json_passes_through(self) -> None:
         """Valid dict output passes through without retry."""
-        good = {"action": "create", "content_type": "job",
-                "fields": {"title": "Test", "description": "Desc"},
-                "confidence": 0.9}
+        good = {
+            "action": "create",
+            "content_type": "job",
+            "fields": {"title": "Test", "description": "Desc"},
+            "confidence": 0.9,
+        }
         inner = FakeProvider({"msg": good})
         provider = RetryableProvider(inner)
-        result = asyncio.run(
-            provider.complete_json(system="sys", user="msg")
-        )
+        result = asyncio.run(provider.complete_json(system="sys", user="msg"))
         assert result == good
         assert len(inner.calls) == 1  # No retry
 
@@ -276,9 +275,12 @@ class TestFallbackChain:
 
     def test_primary_success_never_touches_fallback(self) -> None:
         """When primary succeeds, fallback is never called."""
-        good = {"action": "create", "content_type": "job",
-                "fields": {"title": "Test", "description": "Desc"},
-                "confidence": 0.9}
+        good = {
+            "action": "create",
+            "content_type": "job",
+            "fields": {"title": "Test", "description": "Desc"},
+            "confidence": 0.9,
+        }
         primary = FakeProvider({"msg": good})
         fallback = FakeProvider({"msg": good})
         chain = FallbackChain(primary=primary, fallback=fallback)
@@ -289,8 +291,12 @@ class TestFallbackChain:
 
     def test_429_triggers_fallback_and_succeeds(self) -> None:
         """Rate limit on primary triggers fallback which returns valid result."""
-        good = {"action": "update", "content_type": "business_info",
-                "fields": {"hours": "9-6"}, "confidence": 0.9}
+        good = {
+            "action": "update",
+            "content_type": "business_info",
+            "fields": {"hours": "9-6"},
+            "confidence": 0.9,
+        }
         primary = RateLimitedProvider()
         fallback = FakeProvider({"msg": good})
         chain = FallbackChain(primary=primary, fallback=fallback)
@@ -316,9 +322,12 @@ class TestFallbackChain:
 
     def test_non_429_error_does_not_trigger_failover(self) -> None:
         """Non-rate-limit errors stay within same provider (no failover)."""
-        good = {"action": "create", "content_type": "job",
-                "fields": {"title": "Test", "description": "Desc"},
-                "confidence": 0.9}
+        good = {
+            "action": "create",
+            "content_type": "job",
+            "fields": {"title": "Test", "description": "Desc"},
+            "confidence": 0.9,
+        }
         # Primary raises a non-429 error (RuntimeError)
         primary = ExplodingProvider()
         fallback = FakeProvider({"msg": good})
@@ -331,9 +340,12 @@ class TestFallbackChain:
 
     def test_fallback_is_per_request_not_persistent(self) -> None:
         """Fallback is per-request: next request goes back to primary."""
-        good = {"action": "create", "content_type": "job",
-                "fields": {"title": "Test", "description": "Desc"},
-                "confidence": 0.9}
+        good = {
+            "action": "create",
+            "content_type": "job",
+            "fields": {"title": "Test", "description": "Desc"},
+            "confidence": 0.9,
+        }
         # Primary: rate-limited on first call, succeeds on second
         primary = FailingThenSuccessProvider(RateLimitError("429"), good)
         fallback = FakeProvider({"msg": good})
@@ -353,8 +365,12 @@ class TestFallbackChain:
 
     def test_chain_works_through_intent_parser(self) -> None:
         """FallbackChain integrates correctly with IntentParser."""
-        good = {"action": "update", "content_type": "business_info",
-                "fields": {"hours": "9-6"}, "confidence": 0.95}
+        good = {
+            "action": "update",
+            "content_type": "business_info",
+            "fields": {"hours": "9-6"},
+            "confidence": 0.95,
+        }
         primary = RateLimitedProvider()
         fallback = FakeProvider({"change my hours to 9-6": good})
         chain = FallbackChain(primary=primary, fallback=fallback)
@@ -377,9 +393,7 @@ class TestGeminiProvider:
         with patch.dict("os.environ", {}, clear=True):
             provider = GeminiProvider(api_key=None)
             with pytest.raises(ValueError, match="GEMINI_API_KEY"):
-                asyncio.run(
-                    provider.complete_json(system="sys", user="msg")
-                )
+                asyncio.run(provider.complete_json(system="sys", user="msg"))
 
     def test_uses_correct_model(self) -> None:
         """Verify the provider uses Gemini Flash by default."""
@@ -406,10 +420,15 @@ class TestGetProvider:
             assert isinstance(provider._inner, GroqProvider)
 
     def test_with_fallback_creates_chain(self) -> None:
-        with patch.dict("os.environ", {
-            "AI_PROVIDER": "groq", "GROQ_API_KEY": "test",
-            "AI_FALLBACK_PROVIDER": "gemini", "GEMINI_API_KEY": "test",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "AI_PROVIDER": "groq",
+                "GROQ_API_KEY": "test",
+                "AI_FALLBACK_PROVIDER": "gemini",
+                "GEMINI_API_KEY": "test",
+            },
+        ):
             provider = get_provider()
             # With fallback: FallbackChain wrapping two RetryableProviders
             assert isinstance(provider, FallbackChain)
@@ -431,6 +450,7 @@ class TestGetProvider:
 
     def test_register_provider(self) -> None:
         """Third-party providers can register themselves."""
+
         class CustomProvider:
             async def complete_json(self, *, system: str, user: str) -> dict:
                 return {}
@@ -443,6 +463,7 @@ class TestGetProvider:
 
         # Clean up
         from track_a.ai_provider import _PROVIDERS
+
         del _PROVIDERS["custom"]
 
 
@@ -481,6 +502,7 @@ class TestProviderSwap:
 
     def test_provider_protocol_compliance(self) -> None:
         """Any class with complete_json is substitutable."""
+
         class MinimalProvider:
             async def complete_json(self, *, system: str, user: str) -> dict:
                 return {"unsupported": True}

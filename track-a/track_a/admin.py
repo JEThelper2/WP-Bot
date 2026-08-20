@@ -19,7 +19,6 @@ import html
 import logging
 import os
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -42,9 +41,7 @@ _VALID_STATUSES = {"new", "in_progress", "resolved"}
 
 def _check_auth(request: Request) -> None:
     """Verify the admin token from the Authorization header or query param."""
-    token = getattr(request.app.state, "admin_token", None) or os.environ.get(
-        "ADMIN_TOKEN", ""
-    )
+    token = getattr(request.app.state, "admin_token", None) or os.environ.get("ADMIN_TOKEN", "")
     if not token:
         return  # No token configured → auth disabled (dev mode)
 
@@ -112,12 +109,12 @@ async def escalation_list(
             msg_preview += "…"
         rows += f"""
         <tr>
-            <td>{e['id']}</td>
-            <td>{_escap(e.get('owner_phone'))}</td>
+            <td>{e["id"]}</td>
+            <td>{_escap(e.get("owner_phone"))}</td>
             <td>{msg_preview}</td>
-            <td>{_status_badge(e.get('status', 'new'))}</td>
-            <td>{_escap(e.get('created_at', '')[:19])}</td>
-            <td><a href="/admin/{e['id']}">View</a></td>
+            <td>{_status_badge(e.get("status", "new"))}</td>
+            <td>{_escap(e.get("created_at", "")[:19])}</td>
+            <td><a href="/admin/{e["id"]}">View</a></td>
         </tr>
         """
 
@@ -191,7 +188,7 @@ async def escalation_detail(request: Request, escalation_id: int) -> HTMLRespons
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Escalation #{esc['id']} — WP-Bot Admin</title>
+    <title>Escalation #{esc["id"]} — WP-Bot Admin</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; background: #f5f5f5; }}
         h1 {{ color: #2c3e50; }}
@@ -207,35 +204,35 @@ async def escalation_detail(request: Request, escalation_id: int) -> HTMLRespons
     </style>
 </head>
 <body>
-    <h1>Escalation #{esc['id']}</h1>
+    <h1>Escalation #{esc["id"]}</h1>
     <a href="/admin">← Back to list</a>
     <div class="card" style="margin-top: 16px;">
         <div class="field">
             <div class="label">Owner Phone</div>
-            <div class="value">{_escap(esc.get('owner_phone'))}</div>
+            <div class="value">{_escap(esc.get("owner_phone"))}</div>
         </div>
         <div class="field">
             <div class="label">Original Message</div>
             <div class="value" style="background:#f8f9fa;padding:10px;border-radius:4px;">
-                {_escap(esc.get('original_message'))}
+                {_escap(esc.get("original_message"))}
             </div>
         </div>
         <div class="field">
             <div class="label">Created</div>
-            <div class="value">{_escap(esc.get('created_at', '')[:19])}</div>
+            <div class="value">{_escap(esc.get("created_at", "")[:19])}</div>
         </div>
         <div class="field">
             <div class="label">Current Status</div>
-            <div class="value">{_status_badge(esc.get('status', 'new'))}</div>
+            <div class="value">{_status_badge(esc.get("status", "new"))}</div>
         </div>
-        <form method="POST" action="/admin/{esc['id']}/update">
+        <form method="POST" action="/admin/{esc["id"]}/update">
             <div class="field">
                 <div class="label">Update Status</div>
                 <select name="status">{status_options}</select>
             </div>
             <div class="field">
                 <div class="label">Notes (what was done)</div>
-                <textarea name="notes" placeholder="e.g. Called the owner, quoted $500 for the homepage redesign…">{_escap(esc.get('notes'))}</textarea>
+                <textarea name="notes" placeholder="e.g. Called the owner, quoted $500 for the homepage redesign…">{_escap(esc.get("notes"))}</textarea>
             </div>
             <button type="submit">Save</button>
         </form>
@@ -261,9 +258,7 @@ async def update_escalation(
     if status not in _VALID_STATUSES:
         raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
 
-    updated = update_escalation_status(
-        db_path, escalation_id, status=status, notes=notes
-    )
+    updated = update_escalation_status(db_path, escalation_id, status=status, notes=notes)
     if not updated:
         raise HTTPException(status_code=404, detail="Escalation not found")
 

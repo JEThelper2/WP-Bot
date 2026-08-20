@@ -71,16 +71,12 @@ class GroqTranscriptionProvider:
         client: Any = None,
     ) -> None:
         self._api_key = api_key or os.environ.get("GROQ_API_KEY")
-        self._model = model or os.environ.get(
-            "GROQ_WHISPER_MODEL", self.DEFAULT_MODEL
-        )
+        self._model = model or os.environ.get("GROQ_WHISPER_MODEL", self.DEFAULT_MODEL)
         self._client = client  # injected for testing
 
     async def transcribe(self, payload: MediaPayload) -> Transcription:
         if not self._api_key:
-            raise ValueError(
-                "GROQ_API_KEY is not configured; cannot transcribe audio"
-            )
+            raise ValueError("GROQ_API_KEY is not configured; cannot transcribe audio")
 
         from openai import AsyncOpenAI
 
@@ -104,9 +100,7 @@ class GroqTranscriptionProvider:
         # Groq's verbose_json returns segments with no_speech_prob.
         # Extract the max no_speech_prob across segments for is_voice.
         segments = getattr(response, "segments", []) or []
-        no_speech_probs = [
-            getattr(s, "no_speech_prob", 0.0) for s in segments
-        ]
+        no_speech_probs = [getattr(s, "no_speech_prob", 0.0) for s in segments]
         no_speech = max(no_speech_probs) if no_speech_probs else 0.0
 
         # Groq doesn't expose avg_logprob directly in verbose_json;
@@ -248,9 +242,7 @@ _TRANSCRIPTION_PROVIDERS: dict[str, type[Transcriber]] = {
 }
 
 
-def get_transcription_provider(
-    name: str | None = None, **kwargs: Any
-) -> Transcriber:
+def get_transcription_provider(name: str | None = None, **kwargs: Any) -> Transcriber:
     """Instantiate the selected transcription provider.
 
     ``name`` defaults to the ``TRANSCRIPTION_PROVIDER`` env var, falling
@@ -261,9 +253,7 @@ def get_transcription_provider(
     cls = _TRANSCRIPTION_PROVIDERS.get(name)
     if cls is None:
         available = ", ".join(sorted(_TRANSCRIPTION_PROVIDERS))
-        raise ValueError(
-            f"Unknown TRANSCRIPTION_PROVIDER {name!r}; available: {available}"
-        )
+        raise ValueError(f"Unknown TRANSCRIPTION_PROVIDER {name!r}; available: {available}")
     return cls(**kwargs)
 
 

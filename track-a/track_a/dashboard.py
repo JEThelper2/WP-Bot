@@ -35,7 +35,6 @@ import io
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -57,9 +56,7 @@ AUTO_REFRESH_SECONDS = 30
 
 def _check_auth(request: Request) -> None:
     """Verify admin token — same logic as admin.py."""
-    token = getattr(request.app.state, "admin_token", None) or os.environ.get(
-        "ADMIN_TOKEN", ""
-    )
+    token = getattr(request.app.state, "admin_token", None) or os.environ.get("ADMIN_TOKEN", "")
     if not token:
         return
     auth_header = request.headers.get("authorization", "")
@@ -69,6 +66,7 @@ def _check_auth(request: Request) -> None:
         provided = request.query_params.get("token", "")
     if provided != token:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -78,16 +76,22 @@ def _escap(s: str | None) -> str:
 
 def _status_color(status: str) -> str:
     return {
-        "active": "#27ae60", "inactive": "#e74c3c", "new": "#e74c3c",
-        "in_progress": "#f39c12", "resolved": "#27ae60",
-        "create": "#3498db", "update": "#f39c12", "delete": "#e74c3c",
-        "undo": "#9b59b6", "failed": "#e74c3c",
+        "active": "#27ae60",
+        "inactive": "#e74c3c",
+        "new": "#e74c3c",
+        "in_progress": "#f39c12",
+        "resolved": "#27ae60",
+        "create": "#3498db",
+        "update": "#f39c12",
+        "delete": "#e74c3c",
+        "undo": "#9b59b6",
+        "failed": "#e74c3c",
     }.get(status, "#95a5a6")
 
 
 def _badge(text: str, color: str | None = None) -> str:
     c = color or _status_color(text)
-    return (f'<span class="badge" style="background:{c};">{_escap(text)}</span>')
+    return f'<span class="badge" style="background:{c};">{_escap(text)}</span>'
 
 
 def _parse_date(d: str | None) -> str | None:
@@ -262,7 +266,7 @@ def _nav(active: str) -> str:
     for key, href, label in items:
         cls = ' class="active"' if key == active else ""
         links += f'<a href="{href}"{cls}>{label}</a>'
-    return f'<nav>{links}</nav>'
+    return f"<nav>{links}</nav>"
 
 
 def _page(title: str, active: str, body: str, extra_head: str = "") -> str:
@@ -300,7 +304,7 @@ def _bar_chart(counts: dict[str, int], max_width: int = 300) -> str:
             f'<span style="width:80px;text-align:right;font-size:0.9em;">{_escap(action)}</span>'
             f'<div class="chart-bar" style="background:{color};width:{width}px;"></div>'
             f'<span style="font-size:0.9em;font-weight:500;">{count}</span>'
-            f'</div>'
+            f"</div>"
         )
     return f'<div style="background:white;padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">{bars}</div>'
 
@@ -308,6 +312,7 @@ def _bar_chart(counts: dict[str, int], max_width: int = 300) -> str:
 # -----------------------------------------------------------------------
 # Dashboard home
 # -----------------------------------------------------------------------
+
 
 @router.get("", response_class=HTMLResponse)
 async def dashboard_home(request: Request) -> HTMLResponse:
@@ -337,6 +342,7 @@ async def dashboard_home(request: Request) -> HTMLResponse:
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
 
@@ -373,8 +379,8 @@ async def dashboard_home(request: Request) -> HTMLResponse:
     <h2>System Health</h2>
     <div class="card" style="margin-bottom:24px;">
         <span class="health health-ok"></span> Track A: <strong>up</strong><br>
-        <span class="health {'health-ok' if track_b_ok else 'health-fail'}"></span>
-        Track B: <strong>{'up' if track_b_ok else 'unreachable'}</strong>
+        <span class="health {"health-ok" if track_b_ok else "health-fail"}"></span>
+        Track B: <strong>{"up" if track_b_ok else "unreachable"}</strong>
     </div>
 
     <h2>At a Glance</h2>
@@ -430,6 +436,7 @@ async def dashboard_home(request: Request) -> HTMLResponse:
 # Onboarded sites view
 # -----------------------------------------------------------------------
 
+
 @router.get("/sites", response_class=HTMLResponse)
 async def sites_view(request: Request) -> HTMLResponse:
     """List all onboarded sites with status, activity, and links."""
@@ -442,6 +449,7 @@ async def sites_view(request: Request) -> HTMLResponse:
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
 
@@ -489,10 +497,10 @@ async def sites_view(request: Request) -> HTMLResponse:
         <tr>
             <td>{_escap(sid)}</td>
             <td>{_escap(owner)}</td>
-            <td><a href="{_escap(s.get('site_url'))}" target="_blank">{_escap(s.get('site_url'))}</a></td>
-            <td>{_badge(s.get('status', 'unknown'))}</td>
+            <td><a href="{_escap(s.get("site_url"))}" target="_blank">{_escap(s.get("site_url"))}</a></td>
+            <td>{_badge(s.get("status", "unknown"))}</td>
             <td>{last_action} {last_str}</td>
-            <td>{_escap(s.get('created_at', '')[:19])}</td>
+            <td>{_escap(s.get("created_at", "")[:19])}</td>
             <td><a href="/admin/dashboard/sites/{_escap(owner)}">History →</a></td>
         </tr>"""
 
@@ -513,6 +521,7 @@ async def sites_view(request: Request) -> HTMLResponse:
 # -----------------------------------------------------------------------
 # Per-site detail view
 # -----------------------------------------------------------------------
+
 
 @router.get("/sites/{owner_id}", response_class=HTMLResponse)
 async def site_detail(
@@ -536,6 +545,7 @@ async def site_detail(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
 
@@ -595,14 +605,14 @@ async def site_detail(
         site_info = f"""
         <div class="card" style="margin-bottom:20px;">
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <h2 style="margin:0;">{_escap(site.get('site_url', owner_id))}</h2>
-                <span class="badge" style="background:{status_color};">{_escap(site.get('status', 'unknown'))}</span>
+                <h2 style="margin:0;">{_escap(site.get("site_url", owner_id))}</h2>
+                <span class="badge" style="background:{status_color};">{_escap(site.get("status", "unknown"))}</span>
             </div>
             <div style="margin-top:8px;color:#666;font-size:0.9em;">
                 <strong>Owner:</strong> {_escap(owner_id)} &nbsp;|&nbsp;
-                <strong>Site ID:</strong> {_escap(site.get('site_id', ''))} &nbsp;|&nbsp;
-                <strong>Created:</strong> {_escap(site.get('created_at', '')[:19])}
-                {'&nbsp;|&nbsp; <a href="' + _escap(site.get('site_url', '')) + '" target="_blank">Open site →</a>' if site.get('site_url') else ''}
+                <strong>Site ID:</strong> {_escap(site.get("site_id", ""))} &nbsp;|&nbsp;
+                <strong>Created:</strong> {_escap(site.get("created_at", "")[:19])}
+                {'&nbsp;|&nbsp; <a href="' + _escap(site.get("site_url", "")) + '" target="_blank">Open site →</a>' if site.get("site_url") else ""}
             </div>
         </div>"""
     else:
@@ -633,15 +643,17 @@ async def site_detail(
                 after_summary = _escap(str(a.get("title", a.get("phone", a.get("hours", "")))))[:60]
         rows_html += f"""
         <tr>
-            <td><code>{_escap(c.get('change_id', '')[:12])}</code></td>
-            <td>{_badge(c.get('content_type', ''))}</td>
-            <td>{_badge(c.get('action', ''))}</td>
+            <td><code>{_escap(c.get("change_id", "")[:12])}</code></td>
+            <td>{_badge(c.get("content_type", ""))}</td>
+            <td>{_badge(c.get("action", ""))}</td>
             <td>{after_summary}</td>
-            <td class="timestamp">{_escap(str(c.get('created_at', ''))[:19])}</td>
+            <td class="timestamp">{_escap(str(c.get("created_at", ""))[:19])}</td>
         </tr>"""
 
     if not rows_html:
-        rows_html = '<tr><td colspan="5" class="empty-state">No changes recorded for this site.</td></tr>'
+        rows_html = (
+            '<tr><td colspan="5" class="empty-state">No changes recorded for this site.</td></tr>'
+        )
 
     # --- filters ---
     ct_options = "".join(
@@ -691,6 +703,7 @@ async def site_detail(
 # Change log view with date range filtering
 # -----------------------------------------------------------------------
 
+
 @router.get("/changes", response_class=HTMLResponse)
 async def changes_view(
     request: Request,
@@ -709,6 +722,7 @@ async def changes_view(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
             query = "SELECT * FROM change_log WHERE 1=1"
@@ -770,12 +784,12 @@ async def changes_view(
                 after_summary = _escap(str(a.get("title", a.get("phone", a.get("hours", "")))))[:50]
         rows_html += f"""
         <tr>
-            <td><code>{_escap(c.get('change_id', '')[:12])}</code></td>
-            <td>{_escap(c.get('owner_id'))}</td>
-            <td>{_badge(c.get('content_type', ''))}</td>
-            <td>{_badge(c.get('action', ''))}</td>
+            <td><code>{_escap(c.get("change_id", "")[:12])}</code></td>
+            <td>{_escap(c.get("owner_id"))}</td>
+            <td>{_badge(c.get("content_type", ""))}</td>
+            <td>{_badge(c.get("action", ""))}</td>
             <td>{after_summary}</td>
-            <td class="timestamp">{_escap(str(c.get('created_at', ''))[:19])}</td>
+            <td class="timestamp">{_escap(str(c.get("created_at", ""))[:19])}</td>
         </tr>"""
 
     if not rows_html:
@@ -828,6 +842,7 @@ async def changes_view(
 # CSV export
 # -----------------------------------------------------------------------
 
+
 @router.get("/changes.csv")
 async def changes_csv(
     request: Request,
@@ -846,6 +861,7 @@ async def changes_csv(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
             query = "SELECT * FROM change_log WHERE 1=1"
@@ -882,14 +898,16 @@ async def changes_csv(
     writer = csv.writer(output)
     writer.writerow(["change_id", "owner_id", "content_type", "action", "live_url", "created_at"])
     for c in changes:
-        writer.writerow([
-            c.get("change_id", ""),
-            c.get("owner_id", ""),
-            c.get("content_type", ""),
-            c.get("action", ""),
-            c.get("live_url", ""),
-            c.get("created_at", ""),
-        ])
+        writer.writerow(
+            [
+                c.get("change_id", ""),
+                c.get("owner_id", ""),
+                c.get("content_type", ""),
+                c.get("action", ""),
+                c.get("live_url", ""),
+                c.get("created_at", ""),
+            ]
+        )
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -901,6 +919,7 @@ async def changes_csv(
 # -----------------------------------------------------------------------
 # Failures view with date range
 # -----------------------------------------------------------------------
+
 
 @router.get("/failures", response_class=HTMLResponse)
 async def failures_view(
@@ -916,6 +935,7 @@ async def failures_view(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
             query = "SELECT * FROM change_log WHERE action = 'failed'"
@@ -949,11 +969,11 @@ async def failures_view(
             error = after.get("error_message", "")
         rows_html += f"""
         <tr>
-            <td><code>{_escap(f.get('change_id', '')[:12])}</code></td>
-            <td>{_escap(f.get('owner_id'))}</td>
-            <td>{_badge(f.get('content_type', ''))}</td>
+            <td><code>{_escap(f.get("change_id", "")[:12])}</code></td>
+            <td>{_escap(f.get("owner_id"))}</td>
+            <td>{_badge(f.get("content_type", ""))}</td>
             <td>{_escap(str(error)[:120])}</td>
-            <td class="timestamp">{_escap(str(f.get('created_at', ''))[:19])}</td>
+            <td class="timestamp">{_escap(str(f.get("created_at", ""))[:19])}</td>
         </tr>"""
 
     if not rows_html:
@@ -980,6 +1000,7 @@ async def failures_view(
 # Escalations redirect
 # -----------------------------------------------------------------------
 
+
 @router.get("/escalations")
 async def escalations_redirect() -> RedirectResponse:
     return RedirectResponse(url="/admin", status_code=303)
@@ -988,6 +1009,7 @@ async def escalations_redirect() -> RedirectResponse:
 # -----------------------------------------------------------------------
 # JSON API endpoints
 # -----------------------------------------------------------------------
+
 
 @router.get("/api/metrics")
 async def api_metrics(
@@ -1008,6 +1030,7 @@ async def api_metrics(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             query_base = "SELECT action, COUNT(*) AS n FROM change_log"
             params: list[Any] = []
@@ -1075,6 +1098,7 @@ async def api_refresh(request: Request) -> dict[str, Any]:
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             row = conn.execute("SELECT COUNT(*) AS n FROM onboarded_sites").fetchone()
             result["sites_count"] = row[0] if row else 0
@@ -1101,6 +1125,7 @@ async def api_refresh(request: Request) -> dict[str, Any]:
 # Helpers
 # -----------------------------------------------------------------------
 
+
 @router.get("/api/activity")
 async def api_activity(
     request: Request,
@@ -1120,6 +1145,7 @@ async def api_activity(
     if track_b_db:
         try:
             import sqlite3
+
             conn = sqlite3.connect(str(track_b_db))
             conn.row_factory = sqlite3.Row
             query = "SELECT * FROM change_log"
@@ -1141,15 +1167,19 @@ async def api_activity(
                         pass
                 summary = ""
                 if isinstance(after, dict):
-                    summary = str(after.get("title", after.get("phone", after.get("hours", ""))))[:60]
-                changes.append({
-                    "change_id": d.get("change_id", ""),
-                    "owner_id": d.get("owner_id", ""),
-                    "content_type": d.get("content_type", ""),
-                    "action": d.get("action", ""),
-                    "summary": summary,
-                    "created_at": str(d.get("created_at", "")),
-                })
+                    summary = str(after.get("title", after.get("phone", after.get("hours", ""))))[
+                        :60
+                    ]
+                changes.append(
+                    {
+                        "change_id": d.get("change_id", ""),
+                        "owner_id": d.get("owner_id", ""),
+                        "content_type": d.get("content_type", ""),
+                        "action": d.get("action", ""),
+                        "summary": summary,
+                        "created_at": str(d.get("created_at", "")),
+                    }
+                )
             conn.close()
         except Exception as exc:
             logger.debug("Could not read activity: %s", exc)

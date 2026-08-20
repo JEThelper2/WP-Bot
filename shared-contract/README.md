@@ -114,7 +114,7 @@ from shared_contract import (
 )
 
 try:
-    validate_intent(payload)          # returns payload unchanged on success
+    validate_intent(payload)  # returns payload unchanged on success
 except ContractValidationError as exc:
     # e.g. "intent failed validation at $.fields.title: 'title' is a required property"
     print(exc)

@@ -26,16 +26,15 @@ onboarding triggers.
 
 from __future__ import annotations
 
-from shared_contract import CONTRACT_VERSION
+from integration_harness import OWNER, build_world, most_recent, send
 
+from shared_contract import CONTRACT_VERSION
 from track_a.composer import compose_completion, compose_confirmation
 from track_a.intent import IntentParseResult
 from track_a.routing import (
     ESCALATION_CONFIRM_REPLY,
     ESCALATION_REPLY_TEXT,
 )
-
-from integration_harness import OWNER, build_world, most_recent, send
 
 JOB_INTENT = {
     "contract_version": CONTRACT_VERSION,
@@ -48,9 +47,7 @@ JOB_INTENT = {
 
 
 def parse_intent(intent: dict) -> IntentParseResult:
-    return IntentParseResult(
-        status="intent", intent=intent, confidence=intent["confidence"]
-    )
+    return IntentParseResult(status="intent", intent=intent, confidence=intent["confidence"])
 
 
 # ------------------------------------------------------------- publish flow

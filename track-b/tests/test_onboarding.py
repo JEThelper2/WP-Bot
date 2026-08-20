@@ -11,6 +11,7 @@ import asyncio
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from wp_fake import SITE, FakeWordPress
 
 from track_b.allowlist import PILOT_SITE_CONFIG
 from track_b.main import create_app
@@ -20,7 +21,6 @@ from track_b.onboarding import (
     validate_site_access,
 )
 from track_b.wordpress import WordPressClient
-from wp_fake import SITE, FakeWordPress
 
 OWNER = "15551234567"
 USERNAME = "editor"
@@ -43,7 +43,9 @@ def store(tmp_path) -> OnboardedSiteStore:
 
 def test_valid_credentials_succeed_and_persist(store, tmp_path):
     fake = FakeWordPress(expected_auth=(USERNAME, APP_PASSWORD))
-    result = run(onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake)))
+    result = run(
+        onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake))
+    )
 
     assert result.status == "success"
     assert result.reason == "ok"
@@ -65,8 +67,12 @@ def test_invalid_credentials_fail_with_specific_reason(store):
     fake = FakeWordPress(expected_auth=(USERNAME, APP_PASSWORD))
     result = run(
         onboard_site(
-            SITE, USERNAME, "WrongPassword123", OWNER,
-            store=store, client=make_client(fake, password="WrongPassword123"),
+            SITE,
+            USERNAME,
+            "WrongPassword123",
+            OWNER,
+            store=store,
+            client=make_client(fake, password="WrongPassword123"),
         )
     )
     assert result.status == "failed"
@@ -77,7 +83,9 @@ def test_invalid_credentials_fail_with_specific_reason(store):
 def test_unreachable_site_fails_with_specific_reason(store):
     fake = FakeWordPress()
     fake.connect_error = True
-    result = run(onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake)))
+    result = run(
+        onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake))
+    )
     assert result.status == "failed"
     assert result.reason == "unreachable"
 
@@ -85,16 +93,18 @@ def test_unreachable_site_fails_with_specific_reason(store):
 def test_not_wordpress_url_fails_with_specific_reason(store):
     fake = FakeWordPress()
     fake.inject_status = 404
-    result = run(onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake)))
+    result = run(
+        onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake))
+    )
     assert result.status == "failed"
     assert result.reason == "not_wordpress"
 
 
 def test_insufficient_permissions_fail_with_specific_reason(store):
-    fake = FakeWordPress(
-        expected_auth=(USERNAME, APP_PASSWORD), user_roles=("subscriber",)
+    fake = FakeWordPress(expected_auth=(USERNAME, APP_PASSWORD), user_roles=("subscriber",))
+    result = run(
+        onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake))
     )
-    result = run(onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake)))
     assert result.status == "failed"
     assert result.reason == "insufficient_permissions"
     assert "Editor" in result.message
@@ -110,10 +120,21 @@ def test_invalid_url_fails_before_any_http(store):
 
 def test_reboarding_same_url_refreshes_record(store):
     fake = FakeWordPress(expected_auth=(USERNAME, APP_PASSWORD))
-    first = run(onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake)))
+    first = run(
+        onboard_site(SITE, USERNAME, APP_PASSWORD, OWNER, store=store, client=make_client(fake))
+    )
     # Re-onboard with a new password: the site now accepts it.
     fake2 = FakeWordPress(expected_auth=(USERNAME, "NewPassword456"))
-    second = run(onboard_site(SITE, USERNAME, "NewPassword456", OWNER, store=store, client=make_client(fake2, password="NewPassword456")))
+    second = run(
+        onboard_site(
+            SITE,
+            USERNAME,
+            "NewPassword456",
+            OWNER,
+            store=store,
+            client=make_client(fake2, password="NewPassword456"),
+        )
+    )
     assert second.status == "success"
     assert second.site_id == first.site_id  # same site, refreshed
     assert len(store.sites_for_owner(OWNER)) == 1
