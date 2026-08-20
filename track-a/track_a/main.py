@@ -34,7 +34,11 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
+from .admin import router as admin_router
+from .ai_provider import get_provider
+from .dashboard import router as dashboard_router
 from .config import Settings
+from .intent import IntentParser
 from .media import WhatsAppMediaClient
 from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
@@ -52,7 +56,7 @@ from .store import (
     log_escalation_request,
 )
 from .trackb import TrackBClient
-from .transcribe import WhisperTranscriber
+from .transcribe import get_transcription_provider
 
 logger = logging.getLogger("track_a.webhook")
 
@@ -77,19 +81,38 @@ def create_app(
         api_version=settings.api_version,
     )
     if processor is None:
+        # Wire the transcription provider from config (Dependency Inversion):
+        # the pipeline never knows which backend is in use.
+        transcriber = get_transcription_provider(
+            settings.transcription_provider,
+        )
         processor = MessageProcessor(
             db_path=settings.db_path,
             media_client=WhatsAppMediaClient(
                 api_token=settings.api_token,
                 api_version=settings.api_version,
             ),
-            transcriber=WhisperTranscriber(),
+            transcriber=transcriber,
             sender=sender,
         )
 
     if router is None:
         trackb = TrackBClient(base_url=settings.track_b_url)
+        # Wire the AI provider from config (Dependency Inversion):
+        # the router/parser never knows which backend is in use.
+        provider_kwargs: dict[str, str] = {}
+        if settings.ai_api_key:
+            provider_kwargs["api_key"] = settings.ai_api_key
+        if settings.ai_model:
+            provider_kwargs["model"] = settings.ai_model
+        llm = get_provider(
+            settings.ai_provider,
+            fallback_name=settings.ai_fallback_provider or None,
+            **provider_kwargs,
+        )
+        parser = IntentParser(llm=llm)
         router = IntentRouter(
+            parser=parser,
             sender=sender,
             trackb=trackb,
             onboarding=OnboardingFlow(trackb=trackb),
@@ -110,6 +133,13 @@ def create_app(
     app.state.settings = settings
     app.state.processor = processor
     app.state.router = router
+    app.state.admin_token = settings.admin_token
+
+    # Internal admin views (PRD §10 + dashboard).
+    # Dashboard must be registered first to avoid /admin/dashboard being
+    # caught by admin's /admin/{escalation_id} catch-all route.
+    app.include_router(dashboard_router)
+    app.include_router(admin_router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
