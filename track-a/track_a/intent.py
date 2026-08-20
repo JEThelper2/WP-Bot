@@ -23,9 +23,10 @@ Three result statuses:
                       (`content_type: null`, `confidence: 0`), which A4
                       routes to the escalation message.
 
-The LLM backend is pluggable: `IntentParser` talks to any `LLMClient`
-(protocol). `OpenAILLMClient` is the real implementation (lazy import,
-optional `llm` extra); tests inject a scripted fake.
+The LLM backend is provider-agnostic: `IntentParser` talks to any
+`AIProvider` (from `ai_provider`).  The default is `GroqProvider`
+(free, fast, OpenAI-compatible); tests inject a scripted fake.
+Provider selection happens at startup via `AI_PROVIDER` env var.
 """
 
 from __future__ import annotations
@@ -33,9 +34,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
 from shared_contract import CONTRACT_VERSION, ContractValidationError, validate_intent
+
+from .ai_provider import AIProvider, get_provider
 
 logger = logging.getLogger("track_a.intent")
 
@@ -89,51 +92,9 @@ class IntentParseResult:
     raw: dict[str, Any] | None = None  # raw LLM JSON, for logging/diagnostics
 
 
-class LLMClient(Protocol):
-    async def complete_json(self, *, system: str, user: str) -> dict[str, Any]: ...
-
-
-class OpenAILLMClient:
-    """Real LLM backend: OpenAI chat completions with JSON output mode.
-
-    Lazily imports `openai` (optional `llm` extra) and reads
-    OPENAI_API_KEY / OPENAI_MODEL from the environment when not passed.
-    """
-
-    def __init__(
-        self,
-        model: str | None = None,
-        api_key: str | None = None,
-        client: Any = None,
-    ) -> None:
-        import os
-
-        self.model = model or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        self._api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        self._client = client
-
-    async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
-        if not self._api_key:
-            raise ValueError("OPENAI_API_KEY is not configured; cannot call the LLM")
-        from openai import AsyncOpenAI
-
-        client = self._client or AsyncOpenAI(api_key=self._api_key)
-        response = await client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0,
-        )
-        content = response.choices[0].message.content or "{}"
-        return json.loads(content)
-
-
 class IntentParser:
-    def __init__(self, llm: LLMClient | None = None) -> None:
-        self.llm = llm or OpenAILLMClient()
+    def __init__(self, llm: AIProvider | None = None) -> None:
+        self.llm = llm or get_provider()
 
     async def parse(
         self,
@@ -147,6 +108,11 @@ class IntentParser:
         `context` carries the prior exchange from a clarification loop (A4):
         the LLM is asked to produce the intent for the full request, using
         the latest message to fill whatever gap we asked about.
+
+        The LLM provider handles retry-on-malformed-JSON and timeout
+        internally (via RetryableProvider).  If the provider call fails
+        entirely, we return low_confidence so the conversation degrades
+        to a clarifying question rather than crashing.
         """
         message_text = (message_text or "").strip()
         if not message_text:
