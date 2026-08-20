@@ -21,7 +21,6 @@ registry seam that will become DB/per-site config later.
 
 from __future__ import annotations
 
-import base64
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -30,6 +29,7 @@ from typing import Any
 from shared_contract import CONTRACT_VERSION, ContractValidationError, validate_intent, validate_result
 
 from .changelog import ChangeLog, ChangeRow
+from .content_types import get_handler
 from .secrets import redact
 from .wordpress import WordPressClient, WordPressError
 
@@ -283,54 +283,15 @@ async def apply_intent(
 
 
 async def _dispatch(intent: dict[str, Any], client: WordPressClient) -> Any:
-    """Route a validated intent to the right WordPressClient operation."""
+    """Route a validated intent to the right WordPressClient operation.
+
+    Uses the content_types registry (OCP) — new content types are added
+    by registering a handler, not by modifying this function.
+    """
     content_type = intent["content_type"]
-    action = intent["action"]
-    fields = intent["fields"]
-
-    if content_type in ("job", "announcement"):
-        if action == "create":
-            return await client.create_post(content_type, fields)
-        # update/delete identify the post by its title (the contract has no
-        # post id field, so title is the stable handle for v1).
-        title = fields.get("title")
-        if not title:
-            raise IntentNotAllowedError(
-                f"{content_type} {action} requires a title to identify the post"
-            )
-        post_id = await client.find_post_by_title(content_type, str(title))
-        if post_id is None:
-            raise WordPressError(
-                f"no {content_type} posting titled {title!r} was found to {action}"
-            )
-        if action == "update":
-            return await client.update_post(post_id, fields, content_type=content_type)
-        return await client.delete_post(post_id, content_type=content_type)
-
-    if content_type == "business_info":
-        return await client.update_site_option(fields)
-
-    if content_type == "image":
-        slot = fields.get("slot")
-        if slot is None:
-            raise IntentNotAllowedError("image intent requires a slot")
-        media: dict[str, Any] = {}
-        if fields.get("media_base64"):
-            try:
-                media["content"] = base64.b64decode(fields["media_base64"])
-            except (ValueError, TypeError) as exc:
-                raise IntentNotAllowedError("media_base64 is not valid base64") from exc
-            media["filename"] = f"wpbot-{slot}.img"
-            media["mime_type"] = "application/octet-stream"
-        elif fields.get("media_url"):
-            raise IntentNotAllowedError(
-                "image intents with media_url are not supported yet — send "
-                "media_base64 instead (v1.5)"
-            )
-        else:
-            raise IntentNotAllowedError("image intent requires media_base64 or media_url")
-        return await client.upload_and_replace_image(slot, media)
-
-    raise IntentNotAllowedError(
-        f"content_type {content_type!r} is not supported"
-    )
+    handler = get_handler(content_type)
+    if handler is None:
+        raise IntentNotAllowedError(
+            f"content_type {content_type!r} is not supported"
+        )
+    return await handler.apply(intent, client)

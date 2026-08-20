@@ -84,21 +84,22 @@ STILL_UNSURE_REPLY_TEXT = (
 
 # ---------------------------------------------------------------------------
 # Required-field knowledge (mirrors shared-contract/intent.schema.json)
+#
+# NOTE: This module uses the content_types registry from Track B for
+# extensibility. For Track A (which doesn't import Track B), we maintain
+# a local fallback that mirrors the registry. In production, Track A
+# would receive this info from Track B via the contract or API.
 # ---------------------------------------------------------------------------
 
-# Fields required on `create` per content_type. update/delete accept
-# partial sets. business_info is all-optional by design.
-_REQUIRED_ON_CREATE: dict[str, tuple[str, ...]] = {
+# Fallback for when content_types registry is not available (Track A)
+_REQUIRED_ON_CREATE_FALLBACK: dict[str, tuple[str, ...]] = {
     "job": ("title", "description"),
     "announcement": ("title", "body"),
     "business_info": (),
     "image": ("slot",),
 }
 
-# The ONE targeted question to ask per missing field. business_info fields
-# never gate confirmation, but they can still be missing from a low-faith
-# parse, so give them questions too.
-FIELD_QUESTIONS: dict[str, str] = {
+FIELD_QUESTIONS_FALLBACK: dict[str, str] = {
     "job.title": "What's the job title?",
     "job.description": "Can you describe the job?",
     "job.location": "Where is the job located?",
@@ -144,7 +145,7 @@ def missing_required_fields(intent: dict[str, Any]) -> list[str]:
 
     return [
         name
-        for name in _REQUIRED_ON_CREATE.get(content_type or "", ())
+        for name in _REQUIRED_ON_CREATE_FALLBACK.get(content_type or "", ())
         if not fields.get(name)
     ]
 
@@ -152,7 +153,7 @@ def missing_required_fields(intent: dict[str, Any]) -> list[str]:
 def targeted_question(content_type: str | None, field: str | None) -> str:
     """One targeted clarifying question for the gap, never a generic one."""
     if content_type and field:
-        question = FIELD_QUESTIONS.get(f"{content_type}.{field}")
+        question = FIELD_QUESTIONS_FALLBACK.get(f"{content_type}.{field}")
         if question:
             return question
         return f"Could you tell me the {field}?"
