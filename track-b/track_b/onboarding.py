@@ -198,6 +198,28 @@ class OnboardedSiteStore:
                 (status, site_id),
             )
 
+    def list_all_sites(self) -> list[OnboardedSite]:
+        """Return all onboarded sites, newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM onboarded_sites ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._row_to_site(row) for row in rows]
+
+    def count_sites(self, status: str | None = None) -> int:
+        """Count sites, optionally filtered by status."""
+        with self._connect() as conn:
+            if status:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS n FROM onboarded_sites WHERE status = ?",
+                    (status,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) AS n FROM onboarded_sites"
+                ).fetchone()
+        return int(row["n"])
+
     def _row_to_site(self, row: sqlite3.Row) -> OnboardedSite:
         return OnboardedSite(
             site_id=row["site_id"],

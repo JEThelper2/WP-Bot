@@ -64,6 +64,19 @@ class ChangeLog(Protocol):
 
     async def get(self, change_id: str) -> ChangeRow | None: ...
 
+    async def list_changes(
+        self,
+        *,
+        owner_id: str | None = None,
+        content_type: str | None = None,
+        action: str | None = None,
+        limit: int = 100,
+    ) -> list[ChangeRow]: ...
+
+    async def count_by_action(self) -> dict[str, int]: ...
+
+    async def count_failed(self) -> int: ...
+
 
 class InMemoryChangeLog:
     """Deterministic in-memory log for tests/dev."""
@@ -108,6 +121,33 @@ class InMemoryChangeLog:
             if row.change_id == change_id:
                 return row
         return None
+
+    async def list_changes(
+        self,
+        *,
+        owner_id: str | None = None,
+        content_type: str | None = None,
+        action: str | None = None,
+        limit: int = 100,
+    ) -> list[ChangeRow]:
+        rows = [r for _, r in self._rows]
+        if owner_id:
+            rows = [r for r in rows if r.owner_id == owner_id]
+        if content_type:
+            rows = [r for r in rows if r.content_type == content_type]
+        if action:
+            rows = [r for r in rows if r.action == action]
+        rows.sort(key=lambda r: r.timestamp, reverse=True)
+        return rows[:limit]
+
+    async def count_by_action(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for _, row in self._rows:
+            counts[row.action] = counts.get(row.action, 0) + 1
+        return counts
+
+    async def count_failed(self) -> int:
+        return sum(1 for _, r in self._rows if r.action == "failed")
 
     def __len__(self) -> int:
         return len(self._rows)
