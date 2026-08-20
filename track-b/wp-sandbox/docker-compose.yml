@@ -44,14 +44,21 @@ services:
     volumes:
       - wordpress_data:/var/www/html
       - ./mu-plugins:/var/www/html/wp-content/mu-plugins
+      - ./entrypoint.sh:/entrypoint-custom.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint-custom.sh"]
 
   setup:
     image: wordpress:cli-php8.2
+    user: root
     depends_on:
       wordpress:
         condition: service_started
     environment:
       WP_URL: http://localhost:8090
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
     volumes:
       - wordpress_data:/var/www/html
       - ./setup.sh:/setup.sh:ro

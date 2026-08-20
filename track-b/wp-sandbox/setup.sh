@@ -28,6 +28,11 @@ if ! $WP core is-installed; then
     --skip-email
 fi
 
+# Set permalink structure for REST API
+echo "[setup] setting permalink structure..."
+$WP rewrite structure '/%postname%/' 2>/dev/null || true
+$WP rewrite flush 2>/dev/null || true
+
 if ! $WP user get editor >/dev/null 2>&1; then
   echo "[setup] creating Editor user..."
   $WP user create editor editor@example.com \
@@ -41,4 +46,10 @@ echo "$APP_PASS" > /shared/app-password.txt
 chmod 600 /shared/app-password.txt
 
 echo "[setup] ready. Editor application password: $APP_PASS"
+
+# --- Fix Apache configuration for REST API and Application Passwords ---
+echo "[setup] configuring Apache..."
+sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf 2>/dev/null || true
+service apache2 reload >/dev/null 2>&1 || true
+
 echo "[setup] done."
