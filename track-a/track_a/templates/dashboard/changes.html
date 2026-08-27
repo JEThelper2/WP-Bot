@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block body %}
+<form class="filters" method="GET" action="/admin/dashboard/changes">
+    <label>Owner: <input name="owner_id" value="{{ owner_id or '' }}" placeholder="owner_id" style="width:120px;"></label>
+    <label>Change ID: <input name="change_id" value="{{ change_id or '' }}" placeholder="ch-..." style="width:120px;"></label>
+    <label>Type:
+        <select name="content_type">
+            <option value="">All</option>
+            {% for ct in ['job', 'announcement', 'business_info', 'image'] %}
+            <option value="{{ ct }}" {% if selected_content_type == ct %}selected{% endif %}>{{ ct }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Action:
+        <select name="action">
+            <option value="">All</option>
+            {% for a in ['create', 'update', 'delete', 'undo', 'failed'] %}
+            <option value="{{ a }}" {% if selected_action == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>From: <input type="date" name="date_from" value="{{ date_from or '' }}"></label>
+    <label>To: <input type="date" name="date_to" value="{{ date_to or '' }}"></label>
+    <button type="submit">Filter</button>
+    <a href="/admin/dashboard/changes" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
+    <a href="{{ csv_url }}" style="padding:6px 12px;background:#27ae60;color:white;border-radius:4px;text-decoration:none;">⬇ CSV</a>
+</form>
+<p style="color:#888;font-size:0.9em;">{{ changes|length }} change(s) found</p>
+<table>
+    <thead>
+        <tr><th>ID</th><th>Owner</th><th>Type</th><th>Action</th><th>Summary</th><th>Time</th></tr>
+    </thead>
+    <tbody>
+        {% for c in changes %}
+        <tr>
+            <td><code>{{ c.change_id[:12] }}</code></td>
+            <td>{{ c.owner_id }}</td>
+            <td>{{ c.content_type|default('', true)|badge }}</td>
+            <td>{{ c.action|default('', true)|badge }}</td>
+            <td>{{ c.after_summary }}</td>
+            <td class="timestamp">{{ c.created_at[:19] if c.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not changes %}
+        <tr><td colspan="6" class="empty-state">No changes found.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

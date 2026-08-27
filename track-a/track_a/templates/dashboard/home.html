@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block body %}
+<h2>System Health</h2>
+<div class="card" style="margin-bottom:24px;">
+    <span class="health health-ok"></span> Track A: <strong>up</strong><br>
+    <span class="health {{ 'health-ok' if track_b_ok else 'health-fail' }}"></span>
+    Track B: <strong>{{ 'up' if track_b_ok else 'unreachable' }}</strong>
+</div>
+
+<h2>At a Glance</h2>
+<div class="grid">
+    <div class="card">
+        <div class="card-num" style="color:#27ae60;" data-metric="sites_active">{{ sites_active }}</div>
+        <div class="card-label">Active Sites</div>
+    </div>
+    <div class="card">
+        <div class="card-num" data-metric="sites_count">{{ sites_count }}</div>
+        <div class="card-label">Total Sites</div>
+    </div>
+    <div class="card">
+        <div class="card-num" style="color:#e74c3c;" data-metric="open_esc">{{ open_esc }}</div>
+        <div class="card-label">Open Escalations</div>
+    </div>
+    <div class="card">
+        <div class="card-num" data-metric="total_esc">{{ total_esc }}</div>
+        <div class="card-label">Total Escalations</div>
+    </div>
+    <div class="card">
+        <div class="card-num" style="color:#e74c3c;" data-metric="failures_count">{{ failures_count }}</div>
+        <div class="card-label">Total Failures</div>
+    </div>
+    <div class="card">
+        <div class="card-num" style="color:#9b59b6;" data-metric="undo_count">{{ undo_count }}</div>
+        <div class="card-label">Undos</div>
+    </div>
+</div>
+
+<h2>Activity by Action</h2>
+{% if action_counts %}
+<div style="background:white;padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    {% for action, count in action_counts|dictsort(by='value', reverse=true) %}
+    <div style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+        <span style="width:80px;text-align:right;font-size:0.9em;">{{ action }}</span>
+        <div class="chart-bar" style="background:{{ status_colors.get(action, '#95a5a6') }};width:{{ (count / max_count * 300)|int }}px;"></div>
+        <span style="font-size:0.9em;font-weight:500;">{{ count }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state">No changes recorded yet.</div>
+{% endif %}
+
+<h2>Activity by Content Type</h2>
+{% if content_type_counts %}
+<div style="background:white;padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    {% for ct, count in content_type_counts|dictsort(by='value', reverse=true) %}
+    <div style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+        <span style="width:120px;text-align:right;font-size:0.9em;">{{ ct }}</span>
+        <div class="chart-bar" style="background:#3498db;width:{{ (count / max_ct_count * 300)|int }}px;"></div>
+        <span style="font-size:0.9em;font-weight:500;">{{ count }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card empty-state">No data yet.</div>
+{% endif %}
+
+<h2>Quick Actions</h2>
+<div class="card">
+    <a href="/admin?status=new" style="margin-right:16px;">Review Open Escalations ({{ open_esc }})</a>
+    <a href="/admin/dashboard/failures" style="margin-right:16px;">View Failures ({{ failures_count }})</a>
+    <a href="/admin/dashboard/changes">Browse Change Log</a>
+</div>
+
+<h2>Live Activity Feed</h2>
+<div id="activity-feed" class="card" style="max-height:400px;overflow-y:auto;padding:0;">
+    <div style="padding:16px;color:#888;text-align:center;">Loading activity...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let refreshInterval = setInterval(refreshData, 30000);
+let lastActivityTime = '';
+const actionColors = {create:'#3498db', update:'#f39c12', delete:'#e74c3c', undo:'#9b59b6', failed:'#e74c3c'};
+
+async function refreshData() {
+    try {
+        const resp = await fetch('/admin/dashboard/api/refresh?' + Date.now());
+        if (resp.ok) {
+            const data = await resp.json();
+            updateMetrics(data);
+            showRefreshIndicator();
+        }
+    } catch(e) { console.error('Refresh failed:', e); }
+    refreshActivity();
+}
+
+async function refreshActivity() {
+    const feed = document.getElementById('activity-feed');
+    if (!feed) return;
+    try {
+        let url = '/admin/dashboard/api/activity?limit=15';
+        if (lastActivityTime) url += '&since=' + encodeURIComponent(lastActivityTime);
+        const resp = await fetch(url + '&' + Date.now());
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.changes && data.changes.length > 0) {
+            renderActivity(data.changes, !lastActivityTime);
+            lastActivityTime = data.changes[0].created_at;
+        } else if (!lastActivityTime) {
+            feed.innerHTML = '<div style="padding:16px;color:#888;text-align:center;">No recent activity</div>';
+        }
+    } catch(e) { console.error('Activity refresh failed:', e); }
+}
+
+function renderActivity(changes, replace) {
+    const feed = document.getElementById('activity-feed');
+    if (!feed) return;
+    const html = changes.map(c => {
+        const color = actionColors[c.action] || '#95a5a6';
+        const time = c.created_at ? c.created_at.substring(11, 19) : '';
+        const date = c.created_at ? c.created_at.substring(0, 10) : '';
+        return `<div style="padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;">
+            <span style="background:${color};color:white;padding:2px 8px;border-radius:4px;font-size:0.8em;min-width:60px;text-align:center;">${c.action}</span>
+            <span style="background:#ecf0f1;padding:2px 6px;border-radius:3px;font-size:0.8em;">${c.content_type}</span>
+            <span style="flex:1;font-size:0.9em;color:#333;">${c.summary || c.owner_id}</span>
+            <span style="font-size:0.8em;color:#888;white-space:nowrap;">${date} ${time}</span>
+        </div>`;
+    }).join('');
+    feed.innerHTML = replace ? html : html + feed.innerHTML;
+}
+
+function updateMetrics(data) {
+    document.querySelectorAll('[data-metric]').forEach(card => {
+        const key = card.getAttribute('data-metric');
+        if (data[key] !== undefined) card.textContent = data[key];
+    });
+}
+
+function showRefreshIndicator() {
+    const el = document.getElementById('refresh-indicator');
+    if (el) { el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1500); }
+}
+
+refreshActivity();
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInterval(refreshInterval); }
+    else { refreshInterval = setInterval(refreshData, 30000); refreshData(); }
+});
+</script>
+{% endblock %}

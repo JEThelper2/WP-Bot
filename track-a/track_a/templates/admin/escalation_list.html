@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block nav %}
+<nav>
+    <a href="/admin" class="active">Escalations</a>
+    <a href="/admin/dashboard">Dashboard</a>
+</nav>
+{% endblock %}
+{% block body %}
+<h1>Escalation Requests</h1>
+<div class="card" style="margin-bottom:16px;">
+    <span>Open: <strong style="color:#e74c3c;">{{ open_count }}</strong></span>
+    <span style="margin-left:20px;">Total: <strong>{{ total_count }}</strong></span>
+</div>
+<div style="margin-bottom:12px;">
+    <a href="/admin" style="margin-right:8px;">All</a>
+    <a href="/admin?status=new" style="margin-right:8px;">New</a>
+    <a href="/admin?status=in_progress" style="margin-right:8px;">In Progress</a>
+    <a href="/admin?status=resolved">Resolved</a>
+</div>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Owner</th>
+            <th>Message</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in escalations %}
+        <tr>
+            <td>{{ e.id }}</td>
+            <td>{{ e.owner_phone }}</td>
+            <td>{{ e.original_message[:80] }}{% if e.original_message|length > 80 %}…{% endif %}</td>
+            <td>
+                <span style="background:{{ status_colors.get(e.status, '#95a5a6') }};color:white;padding:2px 8px;border-radius:4px;font-size:0.85em;">{{ e.status }}</span>
+            </td>
+            <td>{{ e.created_at[:19] }}</td>
+            <td><a href="/admin/{{ e.id }}">View</a></td>
+        </tr>
+        {% endfor %}
+        {% if not escalations %}
+        <tr><td colspan="6" style="text-align:center;color:#888;">No escalation requests found.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

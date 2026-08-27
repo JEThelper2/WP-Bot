@@ -40,6 +40,11 @@
       "minimum": 0.0,
       "maximum": 1.0,
       "description": "How confident Track A is that the parsed intent is correct (0.0 = no idea, 1.0 = certain). Used by Track B to decide when to ask for confirmation."
+    },
+    "site_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional target site for multi-site owners. When present, Track B resolves the site by this id instead of the default. Omit for single-site owners (backward compatible)."
     }
   },
   "allOf": [

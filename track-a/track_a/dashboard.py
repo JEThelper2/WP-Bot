@@ -30,6 +30,7 @@ Routes (all under /admin/dashboard):
 from __future__ import annotations
 
 import csv
+import hmac
 import html
 import io
 import json
@@ -41,6 +42,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .store import count_escalation_requests, count_open_escalations
 
@@ -64,7 +66,7 @@ def _check_auth(request: Request) -> None:
         provided = auth_header[7:]
     else:
         provided = request.query_params.get("token", "")
-    if provided != token:
+    if not hmac.compare_digest(provided, token):
         from fastapi import HTTPException
 
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -310,6 +312,31 @@ def _bar_chart(counts: dict[str, int], max_width: int = 300) -> str:
 
 
 # -----------------------------------------------------------------------
+# Jinja2 template engine
+# -----------------------------------------------------------------------
+
+_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+    autoescape=select_autoescape(["html"]),
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+_jinja_env.filters["status_color"] = _status_color
+_jinja_env.filters["badge"] = lambda text, color=None: (
+    f'<span class="badge" style="background:{color or _status_color(text)};">'
+    f"{html.escape(str(text))}</span>"
+)
+
+
+def _render(template_name: str, context: dict[str, Any]) -> HTMLResponse:
+    """Render a Jinja2 template and return an HTMLResponse."""
+    tmpl = _jinja_env.get_template(template_name)
+    return HTMLResponse(content=tmpl.render(**context))
+
+
+# -----------------------------------------------------------------------
 # Dashboard home
 # -----------------------------------------------------------------------
 
@@ -373,63 +400,24 @@ async def dashboard_home(request: Request) -> HTMLResponse:
         except Exception as exc:
             logger.debug("Could not read Track B data: %s", exc)
 
-    chart_html = _bar_chart(action_counts)
-
-    body = f"""
-    <h2>System Health</h2>
-    <div class="card" style="margin-bottom:24px;">
-        <span class="health health-ok"></span> Track A: <strong>up</strong><br>
-        <span class="health {"health-ok" if track_b_ok else "health-fail"}"></span>
-        Track B: <strong>{"up" if track_b_ok else "unreachable"}</strong>
-    </div>
-
-    <h2>At a Glance</h2>
-    <div class="grid">
-        <div class="card">
-            <div class="card-num" style="color:#27ae60;" data-metric="sites_active">{sites_active}</div>
-            <div class="card-label">Active Sites</div>
-        </div>
-        <div class="card">
-            <div class="card-num" data-metric="sites_count">{sites_count}</div>
-            <div class="card-label">Total Sites</div>
-        </div>
-        <div class="card">
-            <div class="card-num" style="color:#e74c3c;" data-metric="open_esc">{open_esc}</div>
-            <div class="card-label">Open Escalations</div>
-        </div>
-        <div class="card">
-            <div class="card-num" data-metric="total_esc">{total_esc}</div>
-            <div class="card-label">Total Escalations</div>
-        </div>
-        <div class="card">
-            <div class="card-num" style="color:#e74c3c;" data-metric="failures_count">{failures_count}</div>
-            <div class="card-label">Total Failures</div>
-        </div>
-        <div class="card">
-            <div class="card-num" style="color:#9b59b6;" data-metric="undo_count">{undo_count}</div>
-            <div class="card-label">Undos</div>
-        </div>
-    </div>
-
-    <h2>Activity by Action</h2>
-    {chart_html if chart_html else '<div class="card empty-state">No changes recorded yet.</div>'}
-
-    <h2>Activity by Content Type</h2>
-    {_bar_chart(content_type_counts) if content_type_counts else '<div class="card empty-state">No data yet.</div>'}
-
-    <h2>Quick Actions</h2>
-    <div class="card">
-        <a href="/admin?status=new" style="margin-right:16px;">Review Open Escalations ({open_esc})</a>
-        <a href="/admin/dashboard/failures" style="margin-right:16px;">View Failures ({failures_count})</a>
-        <a href="/admin/dashboard/changes">Browse Change Log</a>
-    </div>
-
-    <h2>Live Activity Feed</h2>
-    <div id="activity-feed" class="card" style="max-height:400px;overflow-y:auto;padding:0;">
-        <div style="padding:16px;color:#888;text-align:center;">Loading activity...</div>
-    </div>
-    """
-    return HTMLResponse(content=_page("Dashboard", "home", body))
+    max_count = max(action_counts.values()) if action_counts else 1
+    max_ct_count = max(content_type_counts.values()) if content_type_counts else 1
+    return _render("dashboard/home.html", {
+        "title": "Dashboard",
+        "active_page": "home",
+        "track_b_ok": track_b_ok,
+        "sites_active": sites_active,
+        "sites_count": sites_count,
+        "open_esc": open_esc,
+        "total_esc": total_esc,
+        "failures_count": failures_count,
+        "undo_count": undo_count,
+        "action_counts": action_counts,
+        "content_type_counts": content_type_counts,
+        "status_colors": {k: _status_color(k) for k in list(action_counts.keys()) + list(content_type_counts.keys())},
+        "max_count": max_count,
+        "max_ct_count": max_ct_count,
+    })
 
 
 # -----------------------------------------------------------------------
@@ -454,10 +442,13 @@ async def sites_view(request: Request) -> HTMLResponse:
             conn.row_factory = sqlite3.Row
 
             rows = conn.execute(
-                "SELECT site_id, owner_id, site_url, username, status, created_at "
+                "SELECT site_id, owner_id, site_url, username, status, active_site_id, created_at "
                 "FROM onboarded_sites ORDER BY created_at DESC"
             ).fetchall()
             sites = [dict(r) for r in rows]
+            # Mark which site is active per owner.
+            for s in sites:
+                s["is_active"] = s.get("active_site_id") == s["site_id"]
 
             # Get last activity per owner (maps to site via owner_id)
             for s in sites:
@@ -484,38 +475,12 @@ async def sites_view(request: Request) -> HTMLResponse:
         except Exception as exc:
             logger.warning("Could not read Track B sites: %s", exc)
 
-    rows_html = ""
-    for s in sites:
-        sid = s.get("site_id", "")
-        act = site_activity.get(sid, {})
-        last = act.get("last_change")
-        last_str = _escap(str(last)[:19]) if last else '<span class="timestamp">No activity</span>'
-        last_action = _badge(act["last_action"]) if act.get("last_action") else ""
-
-        owner = s.get("owner_id", "")
-        rows_html += f"""
-        <tr>
-            <td>{_escap(sid)}</td>
-            <td>{_escap(owner)}</td>
-            <td><a href="{_escap(s.get("site_url"))}" target="_blank">{_escap(s.get("site_url"))}</a></td>
-            <td>{_badge(s.get("status", "unknown"))}</td>
-            <td>{last_action} {last_str}</td>
-            <td>{_escap(s.get("created_at", "")[:19])}</td>
-            <td><a href="/admin/dashboard/sites/{_escap(owner)}">History →</a></td>
-        </tr>"""
-
-    if not rows_html:
-        rows_html = '<tr><td colspan="7" class="empty-state">No onboarded sites found.</td></tr>'
-
-    body = f"""
-    <table>
-        <thead>
-            <tr><th>Site ID</th><th>Owner</th><th>URL</th><th>Status</th><th>Last Activity</th><th>Created</th><th></th></tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-    </table>
-    """
-    return HTMLResponse(content=_page("Onboarded Sites", "sites", body))
+    return _render("dashboard/sites.html", {
+        "title": "Onboarded Sites",
+        "active_page": "sites",
+        "sites": sites,
+        "site_activity": site_activity,
+    })
 
 
 # -----------------------------------------------------------------------
@@ -599,104 +564,28 @@ async def site_detail(
         except Exception as exc:
             logger.warning("Could not read site detail for %s: %s", owner_id, exc)
 
-    # --- site info card ---
-    if site:
-        status_color = _status_color(site.get("status", ""))
-        site_info = f"""
-        <div class="card" style="margin-bottom:20px;">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <h2 style="margin:0;">{_escap(site.get("site_url", owner_id))}</h2>
-                <span class="badge" style="background:{status_color};">{_escap(site.get("status", "unknown"))}</span>
-            </div>
-            <div style="margin-top:8px;color:#666;font-size:0.9em;">
-                <strong>Owner:</strong> {_escap(owner_id)} &nbsp;|&nbsp;
-                <strong>Site ID:</strong> {_escap(site.get("site_id", ""))} &nbsp;|&nbsp;
-                <strong>Created:</strong> {_escap(site.get("created_at", "")[:19])}
-                {'&nbsp;|&nbsp; <a href="' + _escap(site.get("site_url", "")) + '" target="_blank">Open site →</a>' if site.get("site_url") else ""}
-            </div>
-        </div>"""
-    else:
-        site_info = f"""
-        <div class="card" style="margin-bottom:20px;">
-            <h2 style="margin:0;">Owner: {_escap(owner_id)}</h2>
-            <p style="color:#888;">No site record found for this owner.</p>
-        </div>"""
-
-    # --- action stats bar ---
-    stat_cards = ""
-    for act in ["create", "update", "delete", "undo", "failed"]:
-        count = site_stats.get(act, 0)
-        color = _status_color(act)
-        stat_cards += f"""
-        <div class="card" style="text-align:center;">
-            <div class="card-num" style="color:{color};font-size:1.5em;">{count}</div>
-            <div class="card-label">{_escap(act)}</div>
-        </div>"""
-
-    # --- change rows ---
-    rows_html = ""
+    # --- compute after_summaries for the template ---
     for c in changes:
         after_summary = ""
         if c.get("after"):
             a = c["after"]
             if isinstance(a, dict):
-                after_summary = _escap(str(a.get("title", a.get("phone", a.get("hours", "")))))[:60]
-        rows_html += f"""
-        <tr>
-            <td><code>{_escap(c.get("change_id", "")[:12])}</code></td>
-            <td>{_badge(c.get("content_type", ""))}</td>
-            <td>{_badge(c.get("action", ""))}</td>
-            <td>{after_summary}</td>
-            <td class="timestamp">{_escap(str(c.get("created_at", ""))[:19])}</td>
-        </tr>"""
+                after_summary = str(a.get("title", a.get("phone", a.get("hours", ""))))[:60]
+        c["after_summary"] = after_summary
 
-    if not rows_html:
-        rows_html = (
-            '<tr><td colspan="5" class="empty-state">No changes recorded for this site.</td></tr>'
-        )
-
-    # --- filters ---
-    ct_options = "".join(
-        f'<option value="{ct}" {"selected" if content_type == ct else ""}>{ct}</option>'
-        for ct in ["job", "announcement", "business_info", "image"]
-    )
-    action_options = "".join(
-        f'<option value="{a}" {"selected" if action == a else ""}>{a}</option>'
-        for a in ["create", "update", "delete", "undo", "failed"]
-    )
-
-    body = f"""
-    <a href="/admin/dashboard/sites" style="display:inline-block;margin-bottom:16px;color:#3498db;font-weight:500;text-decoration:none;">← Back to Sites</a>
-
-    {site_info}
-
-    <div class="grid" style="margin-bottom:20px;">
-        {stat_cards}
-    </div>
-
-    <h2>Change History ({total_changes})</h2>
-    <form class="filters" method="GET" action="/admin/dashboard/sites/{_escap(owner_id)}">
-        <label>Type:
-            <select name="content_type"><option value="">All</option>{ct_options}</select>
-        </label>
-        <label>Action:
-            <select name="action"><option value="">All</option>{action_options}</select>
-        </label>
-        <label>From: <input type="date" name="date_from" value="{_escap(date_from)}"></label>
-        <label>To: <input type="date" name="date_to" value="{_escap(date_to)}"></label>
-        <button type="submit">Filter</button>
-        <a href="/admin/dashboard/sites/{_escap(owner_id)}" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
-    </form>
-
-    <table>
-        <thead>
-            <tr><th>ID</th><th>Type</th><th>Action</th><th>Summary</th><th>Time</th></tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-    </table>
-    """
-    title = f"Site History: {_escap(owner_id)}"
-    return HTMLResponse(content=_page(title, "sites", body))
+    return _render("dashboard/site_detail.html", {
+        "title": f"Site History: {owner_id}",
+        "active_page": "sites",
+        "owner_id": owner_id,
+        "site": site,
+        "site_stats": site_stats,
+        "total_changes": total_changes,
+        "changes": changes,
+        "content_type": content_type,
+        "action": action,
+        "date_from": date_from,
+        "date_to": date_to,
+    })
 
 
 # -----------------------------------------------------------------------
@@ -766,34 +655,14 @@ async def changes_view(
         except Exception as exc:
             logger.warning("Could not read Track B changes: %s", exc)
 
-    ct_options = "".join(
-        f'<option value="{ct}" {"selected" if content_type == ct else ""}>{ct}</option>'
-        for ct in ["job", "announcement", "business_info", "image"]
-    )
-    action_options = "".join(
-        f'<option value="{a}" {"selected" if action == a else ""}>{a}</option>'
-        for a in ["create", "update", "delete", "undo", "failed"]
-    )
-
-    rows_html = ""
+    # --- compute after_summaries ---
     for c in changes:
         after_summary = ""
         if c.get("after"):
             a = c["after"]
             if isinstance(a, dict):
-                after_summary = _escap(str(a.get("title", a.get("phone", a.get("hours", "")))))[:50]
-        rows_html += f"""
-        <tr>
-            <td><code>{_escap(c.get("change_id", "")[:12])}</code></td>
-            <td>{_escap(c.get("owner_id"))}</td>
-            <td>{_badge(c.get("content_type", ""))}</td>
-            <td>{_badge(c.get("action", ""))}</td>
-            <td>{after_summary}</td>
-            <td class="timestamp">{_escap(str(c.get("created_at", ""))[:19])}</td>
-        </tr>"""
-
-    if not rows_html:
-        rows_html = '<tr><td colspan="6" class="empty-state">No changes found.</td></tr>'
+                after_summary = str(a.get("title", a.get("phone", a.get("hours", ""))))[:50]
+        c["after_summary"] = after_summary
 
     # Build CSV export URL
     csv_params = []
@@ -811,31 +680,18 @@ async def changes_view(
         csv_params.append(f"date_to={date_to}")
     csv_url = "/admin/dashboard/changes.csv?" + "&".join(csv_params)
 
-    body = f"""
-    <form class="filters" method="GET" action="/admin/dashboard/changes">
-        <label>Owner: <input name="owner_id" value="{_escap(owner_id)}" placeholder="owner_id" style="width:120px;"></label>
-        <label>Change ID: <input name="change_id" value="{_escap(change_id)}" placeholder="ch-..." style="width:120px;"></label>
-        <label>Type:
-            <select name="content_type"><option value="">All</option>{ct_options}</select>
-        </label>
-        <label>Action:
-            <select name="action"><option value="">All</option>{action_options}</select>
-        </label>
-        <label>From: <input type="date" name="date_from" value="{_escap(date_from)}"></label>
-        <label>To: <input type="date" name="date_to" value="{_escap(date_to)}"></label>
-        <button type="submit">Filter</button>
-        <a href="/admin/dashboard/changes" class="secondary" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
-        <a href="{csv_url}" style="padding:6px 12px;background:#27ae60;color:white;border-radius:4px;text-decoration:none;">⬇ CSV</a>
-    </form>
-    <p style="color:#888;font-size:0.9em;">{len(changes)} change(s) found</p>
-    <table>
-        <thead>
-            <tr><th>ID</th><th>Owner</th><th>Type</th><th>Action</th><th>Summary</th><th>Time</th></tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-    </table>
-    """
-    return HTMLResponse(content=_page("Change Log", "changes", body))
+    return _render("dashboard/changes.html", {
+        "title": "Change Log",
+        "active_page": "changes",
+        "changes": changes,
+        "owner_id": owner_id,
+        "selected_content_type": content_type,
+        "selected_action": action,
+        "change_id": change_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "csv_url": csv_url,
+    })
 
 
 # -----------------------------------------------------------------------
@@ -956,7 +812,7 @@ async def failures_view(
         except Exception:
             pass
 
-    rows_html = ""
+    # --- compute error_message for the template ---
     for f in failures:
         error = ""
         after = f.get("after")
@@ -967,33 +823,15 @@ async def failures_view(
                 pass
         if isinstance(after, dict):
             error = after.get("error_message", "")
-        rows_html += f"""
-        <tr>
-            <td><code>{_escap(f.get("change_id", "")[:12])}</code></td>
-            <td>{_escap(f.get("owner_id"))}</td>
-            <td>{_badge(f.get("content_type", ""))}</td>
-            <td>{_escap(str(error)[:120])}</td>
-            <td class="timestamp">{_escap(str(f.get("created_at", ""))[:19])}</td>
-        </tr>"""
+        f["error_message"] = str(error)
 
-    if not rows_html:
-        rows_html = '<tr><td colspan="5" class="empty-state" style="color:#27ae60;font-weight:bold;">✓ No recent failures — all writes succeeded!</td></tr>'
-
-    body = f"""
-    <form class="filters" method="GET" action="/admin/dashboard/failures">
-        <label>From: <input type="date" name="date_from" value="{_escap(date_from)}"></label>
-        <label>To: <input type="date" name="date_to" value="{_escap(date_to)}"></label>
-        <button type="submit">Filter</button>
-        <a href="/admin/dashboard/failures" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
-    </form>
-    <table>
-        <thead>
-            <tr><th>ID</th><th>Owner</th><th>Type</th><th>Error</th><th>Time</th></tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
-    </table>
-    """
-    return HTMLResponse(content=_page("⚠ Failed Writes", "failures", body))
+    return _render("dashboard/failures.html", {
+        "title": "⚠ Failed Writes",
+        "active_page": "failures",
+        "failures": failures,
+        "date_from": date_from,
+        "date_to": date_to,
+    })
 
 
 # -----------------------------------------------------------------------

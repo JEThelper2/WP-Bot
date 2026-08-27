@@ -2,265 +2,832 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WP-Bot — Update Your Website by WhatsApp</title>
   <meta name="description" content="Update your WordPress website by sending a WhatsApp message. No dashboard, no login, no technical skills needed.">
-  <link rel="stylesheet" href="style.css">
+  <meta property="og:title" content="WP-Bot — Update Your Website by WhatsApp">
+  <meta property="og:description" content="No dashboard. No login. No technical skills. Just send a WhatsApp message and your WordPress site updates itself.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://freebuff.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "brand-navy": "#0B1220",
+            "brand-teal": "#0D9488",
+            "brand-mint": "#2DD4BF",
+            "surface": "#FFFFFF",
+            "surface-container-low": "#f2f4f3",
+            "surface-container": "#eceeed",
+            "surface-container-high": "#e6e9e8",
+            "text-primary": "#111827",
+            "text-secondary": "#64748B",
+            "border-soft": "#E2E8F0",
+            "success": "#16A34A",
+            "error": "#DC2626",
+            "on-surface-variant": "#45474c",
+            "secondary": "#006a61",
+            "secondary-container": "#86f2e4",
+            "on-secondary-container": "#006f66",
+            "primary-container": "#151b2a",
+            "on-primary-fixed": "#7d8496",
+            "inverse-primary": "#c0c6da",
+            "background": "#f8faf9",
+          },
+          fontFamily: {
+            inter: ["Inter", "sans-serif"],
+          },
+          maxWidth: {
+            "container-max": "1280px",
+          },
+          spacing: {
+            "margin-mobile": "16px",
+            "margin-desktop": "40px",
+            "gutter": "24px",
+          },
+          borderRadius: {
+            "card": "0.75rem",
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    /* ---- Selection ---- */
+    ::selection { background: #86f2e4; color: #00201d; }
+    /* ---- Material Symbols defaults ---- */
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    /* ---- Phone mockup chat message animations ---- */
+    .msg-animate { animation: message-appear 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+    .msg-delay-1 { animation-delay: 0.3s; } .msg-delay-2 { animation-delay: 1.2s; } .msg-delay-3 { animation-delay: 2.4s; } .msg-delay-4 { animation-delay: 3.2s; }
+    @keyframes message-appear { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: translateY(0); } }
+    /* ---- YES pulse ---- */
+    @keyframes pulse-yes { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    .animate-pulse-yes { display: inline-block; animation: pulse-yes 2s ease-in-out infinite; animation-delay: 2.8s; }
+    /* ---- Teal pulse dot ---- */
+    @keyframes pulse-teal { 0% { box-shadow: 0 0 0 0 rgba(13,148,136,0.4); } 70% { box-shadow: 0 0 0 6px rgba(13,148,136,0); } 100% { box-shadow: 0 0 0 0 rgba(13,148,136,0); } }
+    .pulse-teal { animation: pulse-teal 2s infinite; }
+    /* ---- Shadow levels ---- */
+    .shadow-level-1 { box-shadow: 0px 4px 20px rgba(11,18,32,0.04); }
+    .shadow-level-2 { box-shadow: 0px 8px 30px rgba(11,18,32,0.08); }
+    /* ---- Phone mockup rotation ---- */
+    .phone-tilt { transform: rotate(2deg); transition: transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+    .phone-tilt:hover { transform: rotate(0deg); }
+    /* ---- Chat typing dots ---- */
+    .typing-dot-1 { animation: bounce 1.2s infinite ease-in-out; animation-delay: 0ms; }
+    .typing-dot-2 { animation: bounce 1.2s infinite ease-in-out; animation-delay: 150ms; }
+    .typing-dot-3 { animation: bounce 1.2s infinite ease-in-out; animation-delay: 300ms; }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
+    /* ---- Pricing glow ---- */
+    @keyframes pricing-glow { 0%,100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.08),0 8px 40px rgba(0,0,0,0.3),0 0 60px rgba(13,148,136,0.08); } 50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.12),0 8px 40px rgba(0,0,0,0.3),0 0 80px rgba(13,148,136,0.15); } }
+    .animate-pricing-glow { animation: pricing-glow 4s ease-in-out infinite; }
+    /* ---- FAQ accordion ---- */
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.22,1,0.36,1); }
+    .faq-item.open .faq-answer { max-height: 250px; }
+    .faq-chevron { transition: transform 0.25s cubic-bezier(0.22,1,0.36,1); }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    /* ---- Step illustration animation ---- */
+    @keyframes scale-pulse { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(1.5); } }
+    .animate-scale-x { animation: scale-pulse 2s ease-in-out infinite alternate; transform-origin: left; }
+    /* ---- Mobile menu ---- */
+    .mobile-menu { max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.22,1,0.36,1); }
+    .mobile-menu.open { max-height: 300px; }
+    /* ---- Smooth scroll ---- */
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    /* ---- Phone wallpaper pattern ---- */
+    .phone-wallpaper { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72zm-8.318 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72zm-8.318 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72z' fill='%23000000' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E"); }
+  </style>
 </head>
-<body>
+<body class="bg-background text-text-primary font-inter antialiased overflow-x-hidden">
 
-<!-- Header -->
-<header class="header">
-  <div class="header-inner">
-    <div class="logo">
-      <div class="logo-icon">W</div>
+<!-- ==================== NAVIGATION ==================== -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-border-soft">
+  <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+    <a class="text-xl font-bold text-brand-navy flex items-center gap-2" href="#">
+      <span class="material-symbols-outlined text-[28px] text-brand-teal">smart_toy</span>
       WP-Bot
+    </a>
+    <div class="hidden md:flex items-center gap-8">
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#how-it-works">How it works</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#features">Features</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#pricing">Pricing</a>
     </div>
-    <nav class="nav-links">
-      <a href="#how-it-works">How It Works</a>
-      <a href="#pricing">Pricing</a>
-      <a href="onboarding.html">Get Started</a>
-    </nav>
+    <a class="bg-brand-navy text-white font-medium text-sm px-6 py-2.5 rounded-card hover:bg-brand-navy/90 transition-colors shadow-level-1 active:scale-95 duration-150" href="#pricing">
+      Get started
+    </a>
+    <!-- Mobile menu toggle -->
+    <button id="mobileMenuBtn" class="md:hidden text-brand-navy p-2" aria-label="Menu">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
   </div>
-</header>
+  <!-- Mobile menu -->
+  <div id="mobileMenu" class="mobile-menu md:hidden border-t border-border-soft bg-surface">
+    <div class="flex flex-col px-margin-mobile py-4 gap-4">
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#how-it-works">How it works</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#features">Features</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="#pricing">Pricing</a>
+      <a class="bg-brand-navy text-white font-medium text-sm px-6 py-2.5 rounded-card text-center hover:bg-brand-navy/90 transition-colors" href="#pricing">Get started</a>
+    </div>
+  </div>
+</nav>
 
-<!-- Ambient floating shapes (subtle background motion) -->
-<div class="ambient-shapes" aria-hidden="true">
-  <div class="ambient-shape"></div>
-  <div class="ambient-shape"></div>
-  <div class="ambient-shape"></div>
+<main class="pt-[72px]">
+
+<!-- ==================== HERO ==================== -->
+<section class="relative pt-12 md:pt-20 pb-16 md:pb-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto overflow-hidden">
+  <div class="absolute inset-0 z-[-1] bg-gradient-to-br from-brand-mint/10 via-background to-brand-teal/5 opacity-50"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-gutter items-center">
+    <!-- Copy -->
+    <div class="flex flex-col gap-6 md:gap-8 max-w-[600px] z-10">
+      <div class="inline-flex items-center gap-2 bg-surface px-3 py-1 rounded-full w-fit border border-border-soft">
+        <span class="w-2 h-2 rounded-full bg-brand-teal pulse-teal block"></span>
+        <span class="text-xs font-semibold text-text-secondary tracking-wide">Active and ready to assist</span>
+      </div>
+      <h1 class="text-4xl md:text-[48px] font-bold leading-[56px] tracking-tight text-text-primary">
+        Stop waiting on developers. Just send a message.
+      </h1>
+      <p class="text-lg text-text-secondary leading-relaxed">
+        WP-Bot is an AI assistant that updates your website for you. Tell it what to change in WhatsApp — hours, announcements, job postings, anything — and it handles the rest.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 pt-2">
+        <a class="bg-brand-navy text-white font-medium text-center px-8 py-4 rounded-card hover:bg-brand-navy/90 transition-all shadow-level-2 hover:shadow-lg active:scale-95 duration-150 flex items-center justify-center gap-2" href="#pricing">
+          Get started
+          <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+        </a>
+        <a class="bg-surface text-text-primary font-medium text-center px-8 py-4 rounded-card hover:bg-surface-container-low transition-all border border-border-soft flex items-center justify-center gap-2" href="#how-it-works">
+          See how it works
+          <span class="material-symbols-outlined text-[20px]">play_circle</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Phone Mockup -->
+    <div class="relative mx-auto w-full max-w-[360px] phone-tilt z-10">
+      <div class="bg-surface rounded-[40px] border-8 border-surface-container shadow-level-2 overflow-hidden flex flex-col" style="aspect-ratio: 9/16; max-height: 640px;">
+        <!-- Phone Header -->
+        <div class="bg-brand-navy text-white px-4 py-3 flex items-center gap-3 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-white">arrow_back</span>
+            <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-white">smart_toy</span>
+            </div>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-white">WP-Bot</p>
+            <p class="text-[11px] text-white/80">online</p>
+          </div>
+        </div>
+        <!-- Chat Area -->
+        <div class="flex-1 bg-surface-container-low p-4 flex flex-col gap-4 overflow-y-auto phone-wallpaper">
+          <!-- Owner Message -->
+          <div class="msg-animate msg-delay-1 bg-brand-mint/20 self-end p-3 rounded-lg rounded-tr-none shadow-sm max-w-[85%] border border-brand-mint/30">
+            <p class="text-sm text-text-primary leading-snug">We're closing early this Friday at 3pm. Please update the website.</p>
+            <p class="text-[10px] text-text-secondary text-right mt-1">10:42 AM <span class="material-symbols-outlined text-[14px] text-brand-teal align-middle">done_all</span></p>
+          </div>
+          <!-- Assistant Message -->
+          <div class="msg-animate msg-delay-2 bg-surface self-start p-3 rounded-lg rounded-tl-none shadow-sm max-w-[85%] border-l-4 border-brand-teal">
+            <p class="text-sm text-text-primary leading-snug mb-2">Got it. Here's what I'll publish:</p>
+            <div class="bg-surface-container-low p-2 rounded text-[13px] font-medium border border-border-soft mb-2">
+              📣 Important Notice:<br>
+              We will be closing early this Friday at 3:00 PM.
+            </div>
+            <p class="text-sm text-text-primary font-semibold">Publish this update?</p>
+            <p class="text-[10px] text-text-secondary text-right mt-1">10:43 AM</p>
+          </div>
+          <!-- Owner Message -->
+          <div class="msg-animate msg-delay-3 bg-brand-mint/20 self-end p-3 rounded-lg rounded-tr-none shadow-sm max-w-[85%] border border-brand-mint/30">
+            <p class="text-sm text-text-primary leading-snug font-bold"><span class="animate-pulse-yes text-brand-teal">YES</span></p>
+            <p class="text-[10px] text-text-secondary text-right mt-1">10:45 AM <span class="material-symbols-outlined text-[14px] text-brand-teal align-middle">done_all</span></p>
+          </div>
+          <!-- Assistant Message -->
+          <div class="msg-animate msg-delay-4 bg-surface self-start p-3 rounded-lg rounded-tl-none shadow-sm max-w-[85%] border-l-4 border-brand-teal">
+            <p class="text-sm text-text-primary leading-snug">✅ Done. Your website has been updated.</p>
+            <a class="text-brand-teal text-[13px] underline mt-1 block" href="#">View live site</a>
+            <p class="text-[10px] text-text-secondary text-right mt-1">10:45 AM</p>
+          </div>
+        </div>
+        <!-- Input Area -->
+        <div class="bg-surface p-3 flex items-center gap-2 shrink-0 border-t border-border-soft">
+          <div class="w-8 h-8 rounded-full text-text-secondary flex items-center justify-center">
+            <span class="material-symbols-outlined">add</span>
+          </div>
+          <div class="flex-1 bg-surface-container-low rounded-full px-4 py-2 text-sm text-text-secondary border border-border-soft">
+            Message
+          </div>
+          <div class="w-10 h-10 bg-brand-teal rounded-full text-white flex items-center justify-center shadow-sm">
+            <span class="material-symbols-outlined text-[20px]">mic</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== STATS BAR ==================== -->
+<div class="bg-brand-navy py-7 px-margin-mobile md:px-margin-desktop relative overflow-hidden">
+  <div class="absolute -top-12 -right-12 w-48 h-48 bg-brand-teal/10 rounded-full pointer-events-none"></div>
+  <div class="max-w-container-max mx-auto flex justify-center items-center gap-0 relative z-10">
+    <div class="text-center flex-1 px-5 relative">
+      <div class="text-3xl font-bold bg-gradient-to-r from-brand-mint to-brand-teal bg-clip-text text-transparent tracking-tight leading-tight">
+        <span class="stat-number" data-target="5000" data-suffix="+">0</span>
+      </div>
+      <div class="text-xs text-white/55 mt-0.5 font-medium">Updates Delivered</div>
+    </div>
+    <div class="text-center flex-1 px-5 relative">
+      <div class="absolute right-0 top-1/2 -translate-y-1/2 w-px h-9 bg-white/12"></div>
+      <div class="text-3xl font-bold bg-gradient-to-r from-brand-mint to-brand-teal bg-clip-text text-transparent tracking-tight leading-tight">
+        <span class="stat-number" data-target="99" data-suffix="%">0</span>
+      </div>
+      <div class="text-xs text-white/55 mt-0.5 font-medium">Uptime</div>
+    </div>
+    <div class="text-center flex-1 px-5 relative">
+      <div class="absolute right-0 top-1/2 -translate-y-1/2 w-px h-9 bg-white/12"></div>
+      <div class="text-3xl font-bold bg-gradient-to-r from-brand-mint to-brand-teal bg-clip-text text-transparent tracking-tight leading-tight">
+        <span class="stat-number" data-target="5" data-suffix=" min">0</span>
+      </div>
+      <div class="text-xs text-white/55 mt-0.5 font-medium">Average Setup Time</div>
+    </div>
+  </div>
 </div>
 
-<!-- Hero -->
-<section class="hero" data-parallax>
-  <div class="container">
-    <h1 class="reveal">Text your website like you'd text an assistant</h1>
-    <p class="subtitle reveal reveal-delay-1">
-      No dashboard. No login. No technical skills. Just send a WhatsApp message and your WordPress site updates itself.
-    </p>
-    <a href="onboarding.html" class="hero-cta reveal reveal-delay-2">Connect Your Website →</a>
+<!-- ==================== HOW IT WORKS ==================== -->
+<section id="how-it-works" class="py-16 md:py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">    <div class="text-center mb-12 md:mb-16">
+    <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight mb-3">How It Works</h2>
+    <p class="text-text-secondary text-lg max-w-2xl mx-auto">Website updates should be as easy as sending a message. Here's how.</p>
+  </div>
 
-    <!-- Phone mockup with animated chat -->
-    <div class="phone-mockup reveal reveal-delay-3">
-      <div class="phone-screen">
-        <div class="phone-header">💬 WP-Bot</div>
-        <div class="phone-messages" id="chat-mockup">
-          <!-- Messages injected by JS for animated sequence -->
+  <!-- Step 1: Connect -->
+  <div class="grid md:grid-cols-2 gap-12 md:gap-24 items-center mb-16 md:mb-24">
+    <div class="order-2 md:order-1">
+      <div class="bg-surface rounded-card shadow-level-1 border border-border-soft overflow-hidden p-8 aspect-square flex items-center justify-center relative">
+        <div class="w-24 h-24 bg-surface-container rounded-full flex items-center justify-center absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 border-2 border-surface z-10">
+          <span class="material-symbols-outlined text-4xl text-text-primary">language</span>
+        </div>
+        <div class="h-1 w-32 bg-border-soft absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2">
+          <div class="h-full bg-brand-teal w-full origin-left animate-scale-x"></div>
+        </div>
+        <div class="w-24 h-24 bg-surface-container-low rounded-full flex items-center justify-center absolute top-1/2 right-1/4 -translate-y-1/2 translate-x-1/2 border-2 border-surface z-10">
+          <span class="material-symbols-outlined text-4xl text-text-primary">smart_toy</span>
+        </div>
+      </div>
+    </div>
+    <div class="order-1 md:order-2">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">1</div>
+        <h3 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary">Tell</h3>
+      </div>
+      <p class="text-text-secondary text-base leading-relaxed mb-6">
+        Send a WhatsApp message just like you'd text a trusted employee. "Change our hours to 9–6." "Post a job opening." "We're closed Friday — put an announcement up." No login. No dashboard. No technical knowledge needed.
+      </p>
+    </div>
+  </div>
+
+  <!-- Step 2: Message -->
+  <div class="bg-surface-container-low py-16 md:py-24 -mx-margin-mobile md:-mx-margin-desktop px-margin-mobile md:px-margin-desktop mb-16 md:mb-24">
+    <div class="max-w-container-max mx-auto grid md:grid-cols-2 gap-12 md:gap-24 items-center">
+      <div>
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">2</div>
+          <h3 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary">Understand</h3>
+        </div>
+        <p class="text-text-secondary text-base leading-relaxed mb-6">
+          The AI reads your message, understands what you want to change, and figures out exactly how to update your website. You don't need to know anything about WordPress — the assistant handles all of that.
+        </p>
+      </div>
+      <!-- WhatsApp Chat Mockup -->
+      <div class="bg-surface rounded-[2rem] shadow-level-2 border border-border-soft overflow-hidden mx-auto max-w-sm w-full">
+        <div class="bg-surface-container-high px-6 py-4 flex items-center gap-3 border-b border-border-soft">
+          <div class="w-10 h-10 rounded-full bg-brand-navy flex items-center justify-center text-white">
+            <span class="material-symbols-outlined" style="font-size: 20px;">smart_toy</span>
+          </div>
+          <div>
+            <div class="text-sm text-text-primary font-semibold">WP-Bot</div>
+            <div class="text-xs text-success flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-success"></span> Online
+            </div>
+          </div>
+        </div>
+        <div class="p-6 bg-background h-80 flex flex-col gap-4 overflow-y-auto">
+          <!-- User Message -->
+          <div class="self-end max-w-[85%]">
+            <div class="bg-surface-container-low text-text-primary rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft">
+              Change our opening hours to 9 AM - 6 PM for this week.
+            </div>
+            <div class="text-right text-[10px] text-on-surface-variant mt-1 mr-1">10:42 AM</div>
+          </div>
+          <!-- Bot Typing -->
+          <div class="self-start max-w-[85%] flex items-end gap-2">
+            <div class="w-6 h-6 rounded-full bg-brand-navy shrink-0 flex items-center justify-center text-white mt-auto mb-4">
+              <span class="material-symbols-outlined" style="font-size: 14px;">smart_toy</span>
+            </div>
+            <div>
+              <div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex gap-1 items-center h-[48px]">
+                <div class="w-1.5 h-1.5 bg-text-secondary rounded-full typing-dot-1"></div>
+                <div class="w-1.5 h-1.5 bg-text-secondary rounded-full typing-dot-2"></div>
+                <div class="w-1.5 h-1.5 bg-text-secondary rounded-full typing-dot-3"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-surface px-4 py-3 border-t border-border-soft flex items-center gap-3">
+          <span class="material-symbols-outlined text-text-secondary">add_circle</span>
+          <div class="flex-1 bg-surface-container rounded-full px-4 py-2 text-sm text-text-secondary border border-border-soft">
+            Message
+          </div>
+          <div class="w-10 h-10 rounded-full bg-brand-teal flex items-center justify-center text-white shadow-sm">
+            <span class="material-symbols-outlined" style="font-size: 20px;">mic</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Steps 3 & 4: Confirm + Published -->
+  <div class="grid md:grid-cols-2 gap-12 md:gap-16">
+    <!-- Step 3 -->
+    <div class="bg-surface rounded-2xl shadow-level-1 border border-border-soft p-8 md:p-12">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">3</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Confirm</h3>
+      </div>
+      <p class="text-text-secondary text-base leading-relaxed mb-8">
+        Before anything goes live, the assistant shows you exactly what it intends to change and asks for your approval. Nothing publishes without your explicit YES.
+      </p>
+      <!-- Confirmation Card Mockup -->
+      <div class="bg-surface-container-low border border-border-soft rounded-card p-5 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="material-symbols-outlined text-brand-teal">visibility</span>
+          <span class="text-sm font-semibold text-text-primary">Preview Changes</span>
+        </div>
+        <div class="bg-surface rounded-lg p-4 border border-border-soft mb-4 text-sm text-text-primary">
+          <strong>Update:</strong> Footer Contact Information<br>
+          <strong>New Value:</strong> "Mon-Fri: 9am - 6pm"
+        </div>
+        <div class="flex gap-3">
+          <button class="flex-1 bg-brand-teal text-white rounded-lg py-2.5 text-sm font-medium hover:bg-brand-teal/90 transition-colors text-center">Confirm</button>
+          <button class="flex-1 bg-surface text-text-primary border border-border-soft rounded-lg py-2.5 text-sm font-medium hover:bg-surface-container-low transition-colors text-center">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <!-- Step 4 -->
+    <div class="bg-surface rounded-2xl shadow-level-1 border border-border-soft p-8 md:p-12 flex flex-col justify-between">
+      <div>
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">4</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Done</h3>
+      </div>
+      <p class="text-text-secondary text-base leading-relaxed mb-8">
+        Your website is updated. The change is live and the assistant confirms completion. Made a mistake? Reply UNDO within 24 hours to reverse it instantly.
+      </p>
+      </div>
+      <!-- Success State Mockup -->
+      <div class="bg-surface-container-low border border-border-soft rounded-card p-6 shadow-sm text-center">
+        <div class="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="material-symbols-outlined text-success text-3xl">check_circle</span>
+        </div>
+        <h4 class="text-sm font-semibold text-text-primary mb-2">Changes Published Successfully</h4>
+        <p class="text-xs text-text-secondary mb-4">Your opening hours have been updated across the site.</p>
+        <a class="inline-flex items-center gap-2 text-brand-teal text-sm font-medium hover:underline" href="#">
+          View live site
+          <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== FEATURES ==================== -->
+<section id="features" class="bg-surface py-16 md:py-24 px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-container-max mx-auto">
+    <div class="text-center mb-12 md:mb-16">
+      <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight mb-3">What you can ask it to do.</h2>
+      <p class="text-text-secondary text-lg max-w-2xl mx-auto">Real actions that work today — no overselling, no "coming soon." Just send a message and it's done.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- Post Jobs -->
+      <div class="bg-surface rounded-xl p-8 shadow-level-1 border border-border-soft flex flex-col items-start gap-4 hover:-translate-y-1 transition-transform duration-300">
+        <div class="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">work</span>
+        </div>
+        <h3 class="text-xl font-semibold text-text-primary">Post Jobs</h3>
+        <p class="text-text-secondary text-base leading-relaxed flex-grow">"Post this job opening: Part-time barista, ₦18/hr, downtown location." The assistant creates a professional job listing on your site.</p>
+      </div>
+      <!-- Announcements -->
+      <div class="bg-surface rounded-xl p-8 shadow-level-1 border border-border-soft flex flex-col items-start gap-4 hover:-translate-y-1 transition-transform duration-300">
+        <div class="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">campaign</span>
+        </div>
+        <h3 class="text-xl font-semibold text-text-primary">Publish Announcements</h3>
+        <p class="text-text-secondary text-base leading-relaxed flex-grow">"We're closed December 25th for Christmas." Holiday hours, special events, closures — posted to your site in seconds.</p>
+      </div>
+      <!-- Business Info -->
+      <div class="bg-surface rounded-xl p-8 shadow-level-1 border border-border-soft flex flex-col items-start gap-4 hover:-translate-y-1 transition-transform duration-300">
+        <div class="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">store</span>
+        </div>
+        <h3 class="text-xl font-semibold text-text-primary">Update Business Info</h3>
+        <p class="text-text-secondary text-base leading-relaxed flex-grow">"Change our phone number to 0803 XXX XXXX." "Update our hours to Mon–Fri 8am–6pm." Partial updates work — just tell what changed.</p>
+      </div>
+      <!-- Images -->
+      <div class="bg-surface rounded-xl p-8 shadow-level-1 border border-border-soft flex flex-col items-start gap-4 hover:-translate-y-1 transition-transform duration-300">
+        <div class="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">image</span>
+        </div>
+        <h3 class="text-xl font-semibold text-text-primary">Update Images</h3>
+        <p class="text-text-secondary text-base leading-relaxed flex-grow">Send a photo to update your homepage banner, logo, or gallery. Snap and send — done.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== WHO IT'S FOR ==================== -->
+<section class="py-16 md:py-24 bg-surface px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-container-max mx-auto">
+    <div class="text-center mb-12 md:mb-16">
+      <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight mb-3">Who It's For</h2>
+      <p class="text-text-secondary text-lg max-w-2xl mx-auto">Built for business owners who have better things to do than figure out WordPress.</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+      <div class="bg-surface-container-low rounded-xl p-5 text-center border border-border-soft">
+        <div class="text-2xl mb-2">🍽️</div>
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Restaurants & Cafés</h4>
+        <p class="text-xs text-text-secondary">Update menus, post specials, announce holiday closures</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-5 text-center border border-border-soft">
+        <div class="text-2xl mb-2">🏥</div>
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Clinics & Health</h4>
+        <p class="text-xs text-text-secondary">Post job openings, update contact info, share service changes</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-5 text-center border border-border-soft">
+        <div class="text-2xl mb-2">🛍️</div>
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Shops & Retail</h4>
+        <p class="text-xs text-text-secondary">Announce sales, update prices, post new arrivals</p>
+      </div>
+      <div class="bg-surface-container-low rounded-xl p-5 text-center border border-border-soft">
+        <div class="text-2xl mb-2">⛪</div>
+        <h4 class="text-sm font-semibold text-text-primary mb-1">Churches & Orgs</h4>
+        <p class="text-xs text-text-secondary">Share event announcements, update service times, post volunteer needs</p>
+      </div>
+    </div>
+    <div class="text-center mt-8">
+      <p class="text-sm text-text-secondary"><strong class="text-text-primary">Perfect for:</strong> Nigerian SME owners with an existing WordPress site who currently pay a developer for every small edit — or let their site go stale because it's too much hassle.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== WHATSAPP INTERFACE ==================== -->
+<section class="py-16 md:py-24 bg-surface-container-low px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-container-max mx-auto grid md:grid-cols-2 gap-12 md:gap-24 items-center">
+    <div>
+      <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight mb-6">You already know how to use WhatsApp. Now you can use it to manage your website.</h2>
+      <p class="text-text-secondary text-lg leading-relaxed mb-6">
+        No new apps to download. No dashboards to learn. No logins to remember. Just open WhatsApp — the app you already use every day — and tell your assistant what you need.
+      </p>
+      <p class="text-text-secondary text-lg leading-relaxed">
+        Whether you're updating your opening hours, posting a job, or sharing an announcement, it's as simple as sending a text message.
+      </p>
+    </div>
+    <div class="bg-surface rounded-[2rem] shadow-level-2 border border-border-soft overflow-hidden mx-auto max-w-sm w-full">
+      <div class="bg-surface-container-high px-6 py-4 flex items-center gap-3 border-b border-border-soft">
+        <div class="w-10 h-10 rounded-full bg-brand-navy flex items-center justify-center text-white">
+          <span class="material-symbols-outlined" style="font-size: 20px;">smart_toy</span>
+        </div>
+        <div>
+          <div class="text-sm text-text-primary font-semibold">WP-Bot</div>
+          <div class="text-xs text-success flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-success"></span> Online</div>
+        </div>
+      </div>
+      <div class="p-6 bg-background flex flex-col gap-4">
+        <div class="self-end max-w-[85%]"><div class="bg-surface-container-low text-text-primary rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft">Change our phone number to 0803 XXX XXXX</div><div class="text-right text-[10px] text-on-surface-variant mt-1">10:42 AM</div></div>
+        <div class="self-start max-w-[85%]"><div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">Got it. I'll update the phone number on your contact page to <strong>0803 XXX XXXX</strong>. Reply YES to publish, NO to cancel.</div><div class="text-[10px] text-on-surface-variant mt-1">10:43 AM</div></div>
+        <div class="self-end max-w-[85%]"><div class="bg-brand-mint/20 text-text-primary rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-brand-mint/30 font-bold">YES</div><div class="text-right text-[10px] text-on-surface-variant mt-1">10:45 AM</div></div>
+        <div class="self-start max-w-[85%]"><div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">✅ Done! Your phone number has been updated. <a href="#" class="text-brand-teal underline">View live site</a><br><span class="text-[10px] text-on-surface-variant">Undo available for 24h — reply UNDO</span></div><div class="text-[10px] text-on-surface-variant mt-1">10:45 AM</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECURITY / TRUST ==================== -->
+<section class="py-16 md:py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+  <div class="bg-surface-container-low rounded-xl p-8 md:p-12 border border-border-soft relative overflow-hidden">
+    <div class="absolute -right-20 -top-20 w-64 h-64 bg-brand-teal/5 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+      <div class="space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-surface rounded-full border border-border-soft text-brand-teal text-xs font-semibold">
+          <span class="material-symbols-outlined text-[16px]">verified_user</span>
+          You're always in control
+        </div>
+        <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight">Your site, your rules.</h2>
+        <p class="text-text-secondary text-lg leading-relaxed">We know handing over site access feels risky. Here's what we do to keep you safe.</p>
+      </div>
+      <div class="space-y-6">
+        <!-- Approval Card -->
+        <div class="bg-surface rounded-xl p-6 shadow-level-2 border border-border-soft flex gap-4">
+          <div class="mt-1 w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-text-primary shrink-0">
+            <span class="material-symbols-outlined">rule</span>
+          </div>
+          <div>
+            <h4 class="text-xl font-semibold text-text-primary mb-2">Nothing publishes without your approval</h4>
+            <p class="text-text-secondary text-base leading-relaxed">Every change shows you exactly what will be published and asks for your explicit YES before anything goes live.</p>
+          </div>
+        </div>
+        <!-- Undo Card -->
+        <div class="bg-surface rounded-xl p-6 shadow-level-2 border border-border-soft flex gap-4">
+          <div class="mt-1 w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-text-primary shrink-0">
+            <span class="material-symbols-outlined">undo</span>
+          </div>
+          <div>
+            <h4 class="text-xl font-semibold text-text-primary mb-2">Made a mistake? Undo it.</h4>
+            <p class="text-text-secondary text-base leading-relaxed">Reply UNDO within 24 hours and the change is fully reverted. Posts go to Trash, not permanent deletion. You're always in control.</p>
+          </div>
+        </div>
+        <!-- Editor Access Card -->
+        <div class="bg-surface rounded-xl p-6 shadow-level-2 border border-border-soft flex gap-4">
+          <div class="mt-1 w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-text-primary shrink-0">
+            <span class="material-symbols-outlined">admin_panel_settings</span>
+          </div>
+          <div>
+            <h4 class="text-xl font-semibold text-text-primary mb-2">Limited access only — we can't break your site</h4>
+            <p class="text-text-secondary text-base leading-relaxed">The assistant only has permission to manage posts and media. It cannot change your site settings, install plugins, or modify users.</p>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- How It Works -->
-<section id="how-it-works">
-  <div class="container">
-    <h2 class="section-title reveal">How It Works</h2>
-    <p class="section-subtitle reveal reveal-delay-1">Three steps from "never heard of this" to "my website is updated."</p>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <h3>Connect your WordPress site</h3>
-          <p>Send "set up my website" to our WhatsApp number. We'll walk you through creating a WordPress application password — a safe, limited-access credential that can't change your site settings.</p>
+<!-- ==================== TESTIMONIALS ==================== -->
+<section class="bg-surface py-16 md:py-24 px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-container-max mx-auto">
+    <div class="text-center mb-12 md:mb-16">
+      <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight mb-3">What Our Users Say</h2>
+      <p class="text-text-secondary text-lg max-w-2xl mx-auto">Real feedback from business owners who stopped waiting on developers.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+      <!-- Testimonial 1 -->
+      <div class="bg-surface rounded-xl p-6 shadow-level-1 border border-border-soft hover:-translate-y-1 transition-transform duration-300">
+        <p class="text-sm leading-relaxed text-on-surface-variant italic mb-5">"I used to wait 3 days for my developer to update my menu. Now I send a text and it's live in 2 minutes. No more chasing anyone."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-teal to-brand-navy flex items-center justify-center text-white text-sm font-bold">A</div>
+          <div>
+            <div class="text-sm font-bold text-text-primary">Adaeze O.</div>
+            <div class="text-xs text-text-secondary">Restaurant Owner, Lagos</div>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <h3>Text what you want to change</h3>
-          <p>Type a message describing what you need — just like you'd tell a staff member. "Post a job", "Update our hours", "Add an announcement about the holiday" — we understand plain English.</p>
+      <!-- Testimonial 2 -->
+      <div class="bg-surface rounded-xl p-6 shadow-level-1 border border-border-soft hover:-translate-y-1 transition-transform duration-300">
+        <p class="text-sm leading-relaxed text-on-surface-variant italic mb-5">"I posted wrong hours by mistake. Just typed UNDO and it was fixed instantly. So simple and reassuring."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-teal to-brand-navy flex items-center justify-center text-white text-sm font-bold">K</div>
+          <div>
+            <div class="text-sm font-bold text-text-primary">Kemi A.</div>
+            <div class="text-xs text-text-secondary">Clinic Manager, Abuja</div>
+          </div>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <h3>Confirm and it's live</h3>
-          <p>We'll show you exactly what will be published and ask for a quick YES. That's it — your site is updated. Made a mistake? Reply UNDO within 24 hours to reverse it instantly.</p>
+      <!-- Testimonial 3 -->
+      <div class="bg-surface rounded-xl p-6 shadow-level-1 border border-border-soft hover:-translate-y-1 transition-transform duration-300">
+        <p class="text-sm leading-relaxed text-on-surface-variant italic mb-5">"Our church secretary used to wait for the volunteer to update events. Now she sends a message and it's done in seconds."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-teal to-brand-navy flex items-center justify-center text-white text-sm font-bold">T</div>
+          <div>
+            <div class="text-sm font-bold text-text-primary">Tunde M.</div>
+            <div class="text-xs text-text-secondary">Church Admin, Ibadan</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- What You Can Do -->
-<section style="background: var(--white);">
-  <div class="container">
-    <h2 class="section-title reveal">What You Can Do</h2>
-    <p class="section-subtitle reveal reveal-delay-1">Real actions that work today — no overselling, no "coming soon."</p>
-
-    <div class="features">
-      <div class="feature reveal reveal-delay-1">
-        <div class="feature-icon">📋</div>
-        <h3>Post Jobs</h3>
-        <p>Share job openings with title, description, location, and pay. Posts to your site's jobs page automatically.</p>
-      </div>
-      <div class="feature reveal reveal-delay-2">
-        <div class="feature-icon">📢</div>
-        <h3>Post Announcements</h3>
-        <p>Let customers know about holiday hours, special events, closures, or any news. Quick and easy.</p>
-      </div>
-      <div class="feature reveal reveal-delay-3">
-        <div class="feature-icon">ℹ️</div>
-        <h3>Update Business Info</h3>
-        <p>Change your phone number, hours, address, or prices. Partial updates work — just tell us what changed.</p>
-      </div>
-      <div class="feature reveal reveal-delay-4">
-        <div class="feature-icon">🖼️</div>
-        <h3>Replace Images</h3>
-        <p>Send a photo to update your homepage banner, logo, or gallery. Snap and send — done.</p>
-      </div>
+<!-- ==================== FAQ ==================== -->
+<section class="py-16 md:py-24 bg-surface-container-low px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-3xl mx-auto flex flex-col gap-12">
+    <div class="text-center flex flex-col gap-4">
+      <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-text-primary">Frequently Asked Questions</h2>
+      <p class="text-text-secondary text-base">Clear answers to help you make a decision.</p>
     </div>
-  </div>
-</section>
-
-<!-- Who It's For -->
-<section>
-  <div class="container">
-    <h2 class="section-title reveal">Who It's For</h2>
-    <p class="section-subtitle reveal reveal-delay-1">Built for business owners who have better things to do than figure out WordPress.</p>
-
-    <div class="use-cases">
-      <div class="use-case">
-        <div class="use-case-icon">🍽️</div>
-        <h4>Restaurants & Cafés</h4>
-        <p>Update menus, post specials, announce holiday closures</p>
-      </div>
-      <div class="use-case">
-        <div class="use-case-icon">🏥</div>
-        <h4>Clinics & Health</h4>
-        <p>Post job openings, update contact info, share service changes</p>
-      </div>
-      <div class="use-case">
-        <div class="use-case-icon">🛍️</div>
-        <h4>Shops & Retail</h4>
-        <p>Announce sales, update prices, post new arrivals</p>
-      </div>
-      <div class="use-case">
-        <div class="use-case-icon">⛪</div>
-        <h4>Churches & Orgs</h4>
-        <p>Share event announcements, update service times, post volunteer needs</p>
-      </div>
-    </div>
-
-    <div class="tip" style="max-width:700px;margin:32px auto 0;">
-      <strong>Perfect for:</strong> Nigerian SME owners with an existing WordPress site who currently pay a developer for every small edit — or let their site go stale because it's too much hassle.
-    </div>
-  </div>
-</section>
-
-<!-- Why Trust This -->
-<section style="background: var(--white);">
-  <div class="container">
-    <h2 class="section-title reveal">Your Site, Your Rules</h2>
-    <p class="section-subtitle reveal reveal-delay-1">We know handing over site access feels risky. Here's what we do to keep you safe.</p>
-
-    <div class="guardrails">
-      <div class="guardrail reveal">
-        <div class="guardrail-check">✓</div>
-        <div class="guardrail-text">
-          <h4>Confirm before every publish</h4>
-          <p>Nothing goes live without your explicit YES. You see exactly what will be published before it happens.</p>
+    <div class="flex flex-col gap-4">
+      <!-- FAQ 1 -->
+      <div class="faq-item bg-surface p-6 rounded-lg shadow-sm border border-border-soft">
+        <button class="faq-question w-full flex justify-between items-center text-left font-semibold text-text-primary hover:text-brand-teal transition-colors">
+          Can the assistant make a mistake and break my website?
+          <span class="faq-chevron material-symbols-outlined text-text-secondary text-lg shrink-0 ml-4">expand_more</span>
+        </button>
+        <div class="faq-answer">
+          <p class="pt-3 text-text-secondary text-base leading-relaxed">No. Nothing goes live without your explicit approval. The assistant shows you exactly what it intends to change and asks for a YES before publishing. You remain in control at every step.</p>
         </div>
       </div>
-      <div class="guardrail reveal reveal-delay-1">
-        <div class="guardrail-check">✓</div>
-        <div class="guardrail-text">
-          <h4>Undo within 24 hours</h4>
-          <p>Made a mistake? Reply UNDO and it's reversed — the change is fully reverted, not just hidden.</p>
+      <!-- FAQ 2 -->
+      <div class="faq-item bg-surface p-6 rounded-lg shadow-sm border border-border-soft">
+        <button class="faq-question w-full flex justify-between items-center text-left font-semibold text-text-primary hover:text-brand-teal transition-colors">
+          What if I make a mistake?
+          <span class="faq-chevron material-symbols-outlined text-text-secondary text-lg shrink-0 ml-4">expand_more</span>
+        </button>
+        <div class="faq-answer">
+          <p class="pt-3 text-text-secondary text-base leading-relaxed">Reply UNDO within 24 hours and the change is fully reverted. Posts go to Trash, not permanent deletion. You're always in control.</p>
         </div>
       </div>
-      <div class="guardrail reveal reveal-delay-2">
-        <div class="guardrail-check">✓</div>
-        <div class="guardrail-text">
-          <h4>Editor access only — never Admin</h4>
-          <p>We use a dedicated WordPress user with limited Editor permissions. We can't change your settings, install plugins, or touch your users.</p>
+      <!-- FAQ 3 -->
+      <div class="faq-item bg-surface p-6 rounded-lg shadow-sm border border-border-soft">
+        <button class="faq-question w-full flex justify-between items-center text-left font-semibold text-text-primary hover:text-brand-teal transition-colors">
+          Do I need technical skills?
+          <span class="faq-chevron material-symbols-outlined text-text-secondary text-lg shrink-0 ml-4">expand_more</span>
+        </button>
+        <div class="faq-answer">
+          <p class="pt-3 text-text-secondary text-base leading-relaxed">Not at all. If you can send a WhatsApp message, you can use WP-Bot. You don't need to know anything about WordPress, plugins, or APIs. Just describe what you want changed.</p>
         </div>
       </div>
-      <div class="guardrail">
-        <div class="guardrail-check">✓</div>
-        <div class="guardrail-text">
-          <h4>No permanent deletes</h4>
-          <p>When we remove a post, it goes to WordPress Trash — fully recoverable from your WordPress admin if needed.</p>
+      <!-- FAQ 4 -->
+      <div class="faq-item bg-surface p-6 rounded-lg shadow-sm border border-border-soft">
+        <button class="faq-question w-full flex justify-between items-center text-left font-semibold text-text-primary hover:text-brand-teal transition-colors">
+          Can I update images?
+          <span class="faq-chevron material-symbols-outlined text-text-secondary text-lg shrink-0 ml-4">expand_more</span>
+        </button>
+        <div class="faq-answer">
+          <p class="pt-3 text-text-secondary text-base leading-relaxed">Yes! Send a photo and tell us where to put it — homepage banner, logo, gallery, or featured image. Snap and send — done.</p>
         </div>
       </div>
-      <div class="guardrail">
-        <div class="guardrail-check">✓</div>
-        <div class="guardrail-text">
-          <h4>Passwords encrypted, never logged</h4>
-          <p>Your application password is encrypted at rest and never appears in any log or error message.</p>
+      <!-- FAQ 5 -->
+      <div class="faq-item bg-surface p-6 rounded-lg shadow-sm border border-border-soft">
+        <button class="faq-question w-full flex justify-between items-center text-left font-semibold text-text-primary hover:text-brand-teal transition-colors">
+          What WordPress plugins do I need?
+          <span class="faq-chevron material-symbols-outlined text-text-secondary text-lg shrink-0 ml-4">expand_more</span>
+        </button>
+        <div class="faq-answer">
+          <p class="pt-3 text-text-secondary text-base leading-relaxed">We recommend installing our small business info plugin for phone/hours/address updates, but it's optional. Jobs and announcements work with any standard WordPress setup.</p>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Pricing -->
-<section id="pricing">
-  <div class="container">
-    <h2 class="section-title reveal">Simple, Honest Pricing</h2>
-    <p class="section-subtitle reveal reveal-delay-1">Unlimited updates for one flat monthly fee. No per-edit charges, no surprises.</p>
-
-    <div class="pricing-cards">        <div class="pricing-card reveal">
-        <div class="badge">Most Popular</div>
-        <h3>WP-Bot Monthly</h3>
-        <div class="price"><span class="counter-value" data-target="5000" data-prefix="₦">₦0</span><span style="font-size:0.5em;font-weight:400;">/month</span></div>
-        <div class="price-sub">Unlimited updates. Cancel anytime.</div>
-        <ul>
-          <li>Unlimited job postings</li>
-          <li>Unlimited announcements</li>
-          <li>Unlimited business info updates</li>
-          <li>Image replacements</li>
-          <li>24-hour undo on every change</li>
-          <li>WhatsApp support</li>
-        </ul>
-        <a href="onboarding.html" class="pricing-cta">Get Started</a>
+<!-- ==================== PRICING ==================== -->
+<section id="pricing" class="py-16 md:py-24 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+  <div class="flex flex-col md:flex-row items-center gap-12 lg:gap-24">
+    <!-- Left: Copy -->
+    <div class="w-full md:w-1/2 flex flex-col gap-6">
+      <span class="text-brand-teal font-semibold text-sm uppercase tracking-widest bg-secondary-fixed/20 px-3 py-1 rounded-full w-fit">Simple Pricing</span>
+      <h2 class="text-3xl md:text-[48px] font-bold tracking-tight text-text-primary leading-tight">Stop paying developers for simple updates.</h2>
+      <p class="text-text-secondary text-lg leading-relaxed max-w-lg">
+        The traditional "Wait + Pay" model is broken. With WP-Bot, you get unlimited website changes instantly. One flat rate. No per-edit charges.
+      </p>
+      <div class="flex flex-col gap-4 mt-2">
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined text-error mt-1">close</span>
+          <div>
+            <h4 class="text-sm font-semibold text-text-primary">The Old Way</h4>
+            <p class="text-text-secondary text-base">Email a developer, wait 3 days, pay $50/hour for minor text edits.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="material-symbols-outlined text-success mt-1">check_circle</span>
+          <div>
+            <h4 class="text-sm font-semibold text-text-primary">The WP-Bot Way</h4>
+            <p class="text-text-secondary text-base">Chat with your assistant. Changes happen in seconds. One flat monthly fee.</p>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="tip" style="max-width:500px;margin:24px auto 0;">
-      <strong>Why not per-edit pricing?</strong> Because the whole point is that you shouldn't have to think about cost every time you need a simple update. One flat fee means you'll actually keep your site fresh.
+    <!-- Right: Pricing Card -->
+    <div class="w-full md:w-1/2 flex justify-center">
+      <div class="bg-primary-container text-on-primary-fixed rounded-xl shadow-lg w-full max-w-md overflow-hidden transform transition-transform hover:-translate-y-2 relative border border-white/10 animate-pricing-glow">
+        <!-- Glow effect -->
+        <div class="absolute -top-24 -right-24 w-48 h-48 bg-brand-teal opacity-20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="p-8 flex flex-col gap-6 relative z-10">
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="text-[32px] font-semibold text-on-primary tracking-tight">Standard</h3>
+              <p class="text-base text-inverse-primary mt-1">Everything you need to manage your site.</p>
+            </div>
+            <div class="bg-brand-teal/20 p-2 rounded-lg">
+              <span class="material-symbols-outlined text-brand-mint">smart_toy</span>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-1 my-2">
+            <span class="text-[48px] font-bold text-on-primary tracking-tight leading-none">₦5,000</span>
+            <span class="text-base text-inverse-primary">/ month</span>
+          </div>
+          <button class="w-full bg-brand-teal hover:bg-brand-mint text-white font-medium text-sm py-4 rounded-card transition-colors flex justify-center items-center gap-2">
+            Get Started Now
+            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+          </button>
+          <div class="flex flex-col gap-3 mt-2">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-brand-mint text-lg">check</span>
+              <span class="text-base text-inverse-primary">Unlimited website updates</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-brand-mint text-lg">check</span>
+              <span class="text-base text-inverse-primary">No developer fees</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-brand-mint text-lg">check</span>
+              <span class="text-base text-inverse-primary">No hidden charges</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-brand-mint text-lg">check</span>
+              <span class="text-base text-inverse-primary">24-hour undo for every change</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-brand-mint text-lg">check</span>
+              <span class="text-base text-inverse-primary">Natural language commands</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-</section>
 
-<!-- CTA -->
-<section class="cta-section">
-  <div class="container">
-    <h2>Ready to update your site from your phone?</h2>
-    <p>Connect your WordPress website in under 5 minutes. No technical skills needed.</p>
-    <a href="onboarding.html" class="cta-btn">Start Setup →</a>
+  <!-- Why flat pricing callout -->
+  <div class="max-w-lg mx-auto mt-8 text-center">
+    <p class="text-sm text-text-secondary"><strong class="text-text-primary">Why flat pricing?</strong> Because the whole point is that you shouldn't have to think about cost every time you need a simple update. One flat fee means you'll actually keep your site fresh.</p>
   </div>
 </section>
 
-<!-- Footer -->
-<footer class="footer">
-  <div class="container">
-    <p>WP-Bot &copy; 2026 &middot; <a href="onboarding.html">Setup Guide</a> &middot; Built for WordPress site owners who'd rather text than log in.</p>
+<!-- ==================== CTA ==================== -->
+<section class="bg-brand-navy py-16 md:py-20 px-margin-mobile md:px-margin-desktop relative overflow-hidden">
+  <div class="absolute -top-20 -right-20 w-80 h-80 bg-brand-teal/15 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="max-w-container-max mx-auto text-center relative z-10">
+    <h2 class="text-3xl md:text-[32px] font-semibold tracking-tight text-white mb-4">Ready to try it?</h2>
+    <p class="text-lg text-white/70 mb-8 max-w-lg mx-auto leading-relaxed">Connect your WordPress website in under 5 minutes. No technical skills needed. Just send a message and your site updates itself.</p>
+    <a href="#pricing" class="inline-flex items-center justify-center bg-brand-teal hover:bg-brand-mint text-white font-medium px-8 py-4 rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95">
+      Start Setup
+      <span class="material-symbols-outlined ml-2 text-[20px]">arrow_forward</span>
+    </a>
+  </div>
+</section>
+
+</main>
+
+<!-- ==================== FOOTER ==================== -->
+<footer class="bg-surface border-t border-border-soft w-full py-12">
+  <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-6">
+    <div class="text-xl font-bold text-brand-navy flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </div>
+    <div class="flex flex-wrap justify-center gap-6">
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm cursor-pointer" href="#how-it-works">Setup Guide</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm cursor-pointer" href="#pricing">Pricing</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm cursor-pointer" href="#how-it-works">How It Works</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm cursor-pointer" href="terms.html">Terms</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm cursor-pointer" href="privacy.html">Privacy</a>
+    </div>
+    <div class="text-xs text-on-surface-variant text-center md:text-right">
+      © 2026 WP-Bot. Intelligent Simplicity.
+    </div>
   </div>
 </footer>
 
-<!-- Animation JS — lightweight, no dependencies -->
+<!-- ==================== JAVASCRIPT ==================== -->
 <script>
 (function() {
   'use strict';
 
+  // --- Mobile menu toggle ---
+  var menuBtn = document.getElementById('mobileMenuBtn');
+  var mobileMenu = document.getElementById('mobileMenu');
+  if (menuBtn && mobileMenu) {
+    menuBtn.addEventListener('click', function() {
+      mobileMenu.classList.toggle('open');
+      var icon = menuBtn.querySelector('.material-symbols-outlined');
+      icon.textContent = mobileMenu.classList.contains('open') ? 'close' : 'menu';
+    });
+    // Close on link click
+    mobileMenu.querySelectorAll('a').forEach(function(link) {
+      link.addEventListener('click', function() {
+        mobileMenu.classList.remove('open');
+        menuBtn.querySelector('.material-symbols-outlined').textContent = 'menu';
+      });
+    });
+  }
+
   // --- Scroll-triggered reveals via IntersectionObserver ---
-  const revealObserver = new IntersectionObserver(function(entries) {
+  var revealObserver = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
       if (entry.isIntersecting) {
         entry.target.classList.add('visible');
         revealObserver.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  }, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
 
   document.querySelectorAll('.reveal').forEach(function(el) {
     revealObserver.observe(el);
   });
 
-  // --- Animated counter ---
+  // --- Animated counters ---
   var counterObserver = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
       if (entry.isIntersecting) {
@@ -270,123 +837,35 @@
     });
   }, { threshold: 0.5 });
 
-  document.querySelectorAll('.counter-value').forEach(function(el) {
+  document.querySelectorAll('.stat-number[data-target]').forEach(function(el) {
     counterObserver.observe(el);
   });
 
   function animateCounter(el) {
     var target = parseInt(el.getAttribute('data-target'), 10);
     var prefix = el.getAttribute('data-prefix') || '';
+    var suffix = el.getAttribute('data-suffix') || '';
     var duration = 1200;
     var start = performance.now();
     function step(now) {
       var progress = Math.min((now - start) / duration, 1);
       var eased = 1 - Math.pow(1 - progress, 3);
       var current = Math.round(eased * target);
-      el.textContent = prefix + current.toLocaleString();
+      el.textContent = prefix + current.toLocaleString() + suffix;
       if (progress < 1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
   }
 
-  // --- Animated chat mockup ---
-  var chatMessages = [
-    { type: 'in',  text: 'Hey! Send me a message to update your website. Try: "Post a job"' },
-    { type: 'out', text: 'Post a job: Part-time barista, $18/hr, downtown location' },
-    { typing: true },
-    { type: 'in',  text: "Post job: 'Part-time Barista' — $18/hr, downtown. Reply YES to publish, NO to cancel." },
-    { type: 'out', text: 'YES' },
-    { typing: true },
-    { type: 'in',  text: 'Done! Your job is live: <a href="#" style="color:var(--green);font-weight:600;">example.com/jobs/part-time-barista</a><br><span class="msg-time">Undo available for 24h — reply UNDO</span>' }
-  ];
-
-  var chatEl = document.getElementById('chat-mockup');
-  if (!chatEl) return;
-
-  var chatIndex = 0;
-  var chatStarted = false;
-
-  // Create typing indicator element
-  var typingEl = document.createElement('div');
-  typingEl.className = 'typing-indicator';
-  typingEl.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
-
-  function showNextMessage() {
-    if (chatIndex >= chatMessages.length) {
-      // Loop: clear and restart after delay
-      setTimeout(function() {
-        chatEl.innerHTML = '';
-        chatIndex = 0;
-        setTimeout(showNextMessage, 800);
-      }, 4000);
-      return;
-    }
-
-    var msg = chatMessages[chatIndex];
-    chatIndex++;
-
-    if (msg.typing) {
-      // Show typing indicator
-      chatEl.appendChild(typingEl);
-      typingEl.classList.add('show');
-      chatEl.scrollTop = chatEl.scrollHeight;
-      setTimeout(showNextMessage, 1200 + Math.random() * 400);
-      return;
-    }
-
-    // Remove typing indicator if present
-    typingEl.classList.remove('show');
-    if (typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-
-    // Create message element
-    var div = document.createElement('div');
-    div.className = 'msg ' + (msg.type === 'out' ? 'msg-out' : 'msg-in');
-    div.innerHTML = msg.text;
-    chatEl.appendChild(div);
-
-    // Trigger animation
-    requestAnimationFrame(function() {
-      div.classList.add('show');
-      chatEl.scrollTop = chatEl.scrollHeight;
+  // --- FAQ toggle ---
+  document.querySelectorAll('.faq-question').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var item = btn.closest('.faq-item');
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(function(o) { o.classList.remove('open'); });
+      if (!isOpen) item.classList.add('open');
     });
-
-    var delay = msg.type === 'out' ? 1500 : 800 + Math.random() * 600;
-    setTimeout(showNextMessage, delay);
-  }
-
-  // Start chat animation when phone mockup is in view
-  var phoneObserver = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting && !chatStarted) {
-        chatStarted = true;
-        setTimeout(showNextMessage, 600);
-      }
-    });
-  }, { threshold: 0.3 });
-
-  var phoneEl = document.querySelector('.phone-mockup');
-  if (phoneEl) phoneObserver.observe(phoneEl);
-
-  // --- Subtle parallax on hero section ---
-  var heroEl = document.querySelector('[data-parallax]');
-  if (heroEl) {
-    var ticking = false;
-    window.addEventListener('scroll', function() {
-      if (!ticking) {
-        requestAnimationFrame(function() {
-          var scrolled = window.pageYOffset;
-          // Only apply while hero is in view, max 60px shift
-          if (scrolled < 800) {
-            var shift = Math.min(scrolled * 0.15, 60);
-            heroEl.style.transform = 'translateY(' + shift + 'px)';
-            heroEl.style.opacity = 1 - (scrolled / 900);
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }, { passive: true });
-  }
+  });
 
 })();
 </script>

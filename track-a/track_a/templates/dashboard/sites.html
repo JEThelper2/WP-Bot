@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block body %}
+<table>
+    <thead>
+        <tr><th>Site ID</th><th>Owner</th><th>URL</th><th>Status</th><th>Last Activity</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for s in sites %}
+        {% set act = site_activity.get(s.site_id, {}) %}
+        <tr>
+            <td>{{ s.site_id }}</td>
+            <td>{{ s.owner_id }}</td>
+            <td><a href="{{ s.site_url }}" target="_blank">{{ s.site_url }}</a></td>
+            <td>
+                {{ s.status|default('unknown', true)|badge }}
+                {% if s.is_active %}<span class="badge" style="background:#2980b9;">active</span>{% endif %}
+            </td>
+            <td>
+                {% if act.get('last_action') %}
+                    {{ act.last_action|badge }}
+                    <span class="timestamp">{{ act.last_change[:19] if act.last_change else '' }}</span>
+                {% else %}
+                    <span class="timestamp">No activity</span>
+                {% endif %}
+            </td>
+            <td>{{ s.created_at[:19] if s.created_at else '' }}</td>
+            <td><a href="/admin/dashboard/sites/{{ s.owner_id }}">History →</a></td>
+        </tr>
+        {% endfor %}
+        {% if not sites %}
+        <tr><td colspan="7" class="empty-state">No onboarded sites found.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

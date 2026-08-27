@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — WP-Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "brand-navy": "#0B1220",
+            "brand-teal": "#0D9488",
+            "brand-mint": "#2DD4BF",
+            "surface": "#FFFFFF",
+            "surface-container-low": "#f2f4f3",
+            "surface-container": "#eceeed",
+            "surface-container-high": "#e6e9e8",
+            "text-primary": "#111827",
+            "text-secondary": "#64748B",
+            "border-soft": "#E2E8F0",
+            "success": "#16A34A",
+            "error": "#DC2626",
+            "on-surface-variant": "#45474c",
+            "secondary": "#006a61",
+            "secondary-container": "#86f2e4",
+            "on-secondary-container": "#006f66",
+            "primary-container": "#151b2a",
+            "on-primary-fixed": "#7d8496",
+            "inverse-primary": "#c0c6da",
+            "background": "#f8faf9",
+          },
+          fontFamily: { inter: ["Inter", "sans-serif"] },
+          maxWidth: { "container-max": "1280px" },
+          spacing: { "margin-mobile": "16px", "margin-desktop": "40px", "gutter": "24px" },
+          borderRadius: { "card": "0.75rem" },
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+  </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-inter antialiased">
+
+<!-- Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-border-soft">
+  <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+    <a class="text-xl font-bold text-brand-navy flex items-center gap-2" href="index.html">
+      <span class="material-symbols-outlined text-[28px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </a>
+    <div class="hidden md:flex items-center gap-8">
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#how-it-works">How it works</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#features">Features</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#pricing">Pricing</a>
+    </div>
+    <a class="bg-brand-navy text-white font-medium text-sm px-6 py-2.5 rounded-card hover:bg-brand-navy/90 transition-colors shadow-level-1" href="index.html#pricing">
+      Get started
+    </a>
+  </div>
+</nav>
+
+<main class="flex-grow flex flex-col items-center justify-start pt-16 pb-32 px-margin-mobile md:px-margin-desktop w-full max-w-container-max mx-auto">
+  <header class="w-full max-w-3xl mb-16 text-center">
+    <h1 class="text-4xl md:text-[48px] font-bold tracking-tight text-text-primary mb-6">Privacy Policy</h1>
+    <p class="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed">
+      We believe in Intelligent Simplicity. That means your data should be handled securely, transparently, and with strict minimal access. This document outlines how we protect your information.
+    </p>
+  </header>
+
+  <article class="w-full max-w-3xl bg-surface rounded-xl shadow-sm border border-border-soft p-8 md:p-12 space-y-12">
+    <!-- Limited Access -->
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border-soft pb-4">
+        <div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined">lock</span>
+        </div>
+        <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary">The "Limited Access" Principle</h2>
+      </div>
+      <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+        <p>Our core philosophy is simple: we only access what we absolutely need to make your experience seamless. WP-Bot operates on a strict "Limited Access" framework, ensuring that your business data remains exactly that—yours.</p>
+        <p>We do not read your general WhatsApp conversations. We only process commands explicitly directed to the assistant.</p>
+      </div>
+    </section>
+
+    <!-- Data Encryption -->
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border-soft pb-4">
+        <div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined">encrypted</span>
+        </div>
+        <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary">Data Encryption & Handling</h2>
+      </div>
+      <div class="space-y-6">
+        <div class="bg-surface-container-low p-6 rounded-lg border border-border-soft">
+          <h3 class="text-xl font-semibold text-text-primary mb-3">WhatsApp Data</h3>
+          <p class="text-base text-on-surface-variant leading-relaxed">Messages sent to WP-Bot are transmitted securely using industry-standard encryption. We transiently process the text to execute your WordPress commands and immediately discard the raw message data from our active memory once the action is confirmed.</p>
+        </div>
+        <div class="bg-surface-container-low p-6 rounded-lg border border-border-soft">
+          <h3 class="text-xl font-semibold text-text-primary mb-3">WordPress Access Tokens</h3>
+          <p class="text-base text-on-surface-variant leading-relaxed">Your WordPress API credentials are encrypted at rest using AES-256 encryption. They are never displayed in plain text within our dashboard or logs. We use these tokens strictly to authenticate requests you initiate via WhatsApp.</p>
+        </div>
+        <div class="bg-surface-container-low p-6 rounded-lg border border-border-soft">
+          <h3 class="text-xl font-semibold text-text-primary mb-3">Business Information</h3>
+          <p class="text-base text-on-surface-variant leading-relaxed">Basic profile information required to maintain your account (such as your phone number and email address) is stored securely. We never sell, rent, or share your business metrics or contact information with third-party advertisers.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Your Rights -->
+    <section class="space-y-6">
+      <div class="flex items-center gap-4 border-b border-border-soft pb-4">
+        <div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-brand-teal">
+          <span class="material-symbols-outlined">verified_user</span>
+        </div>
+        <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary">Your Rights</h2>
+      </div>
+      <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+        <p>You have complete control over your connection. You can revoke WordPress access tokens directly from your WordPress admin panel at any time, instantly severing WP-Bot's ability to interact with your site. Furthermore, you may request complete deletion of your account and associated encrypted credentials by contacting support.</p>
+      </div>
+    </section>
+  </article>
+</main>
+
+<!-- Footer -->
+<footer class="w-full py-12 bg-surface border-t border-border-soft">
+  <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-6">
+    <div class="text-xl font-bold text-brand-navy flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </div>
+    <div class="flex gap-6">
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="terms.html">Terms</a>
+      <a class="text-brand-teal font-semibold text-sm" href="privacy.html">Privacy</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="index.html">Home</a>
+    </div>
+    <div class="text-xs text-on-surface-variant text-center md:text-right">
+      © 2026 WP-Bot. Intelligent Simplicity.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

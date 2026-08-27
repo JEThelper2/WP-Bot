@@ -43,6 +43,7 @@ from shared_contract import (
     validate_intent,
     validate_result,
 )
+from shared_contract.logging import setup_logging
 
 from .allowlist import apply_intent
 from .changelog import ChangeLog, InMemoryChangeLog
@@ -56,6 +57,8 @@ logger = logging.getLogger("track_b.api")
 
 
 class OnboardRequest(BaseModel):
+    """Request to onboard a WordPress site."""
+
     site_url: str
     username: str
     app_password: str
@@ -63,7 +66,22 @@ class OnboardRequest(BaseModel):
 
 
 class UndoRequest(BaseModel):
+    """Request to undo the most recent change for an owner."""
+
     owner_id: str
+    site_id: str | None = None  # multi-site: scope undo to this site
+
+
+class IntentRequest(BaseModel):
+    """An intent object matching shared-contract/intent.schema.json."""
+
+    contract_version: str
+    owner_id: str
+    action: str
+    content_type: str
+    fields: dict[str, Any]
+    confidence: float
+    site_id: str | None = None  # multi-site: target site id
 
 
 @dataclass
@@ -151,6 +169,7 @@ def create_app(
     services: TrackBServices | None = None,
     onboarding_runner: Callable | None = None,
 ) -> FastAPI:
+    setup_logging()
     settings = settings or Settings.from_env()
     app = FastAPI(
         title="WP-Bot Track B (WordPress site/state)",
@@ -170,12 +189,48 @@ def create_app(
         return app.state.services
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok", "service": "track-b"}
+    async def health() -> dict[str, Any]:
+        """Liveness + readiness: checks SQLite, Redis, and Postgres."""
+        import sqlite3
+
+        checks: dict[str, str] = {}
+        # SQLite site store
+        try:
+            conn = sqlite3.connect(str(settings.db_path))
+            conn.execute("SELECT 1")
+            conn.close()
+            checks["sqlite"] = "ok"
+        except Exception:
+            checks["sqlite"] = "unreachable"
+        # Redis
+        try:
+            import redis.asyncio as aioredis
+
+            r = aioredis.from_url(settings.redis_url, socket_connect_timeout=1.0)
+            await r.ping()
+            await r.aclose()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "unavailable"
+        # Postgres (only if configured)
+        if settings.pg_dsn:
+            try:
+                import asyncpg
+
+                conn = await asyncpg.connect(settings.pg_dsn, timeout=2.0)
+                await conn.execute("SELECT 1")
+                await conn.close()
+                checks["postgres"] = "ok"
+            except Exception:
+                checks["postgres"] = "unreachable"
+        else:
+            checks["postgres"] = "not_configured"
+        all_ok = all(v in ("ok", "not_configured", "unavailable") for v in checks.values())
+        return {"status": "ok" if all_ok else "degraded", "service": "track-b", **checks}
 
     # ------------------------------------------------------- onboarding
 
-    @app.post("/sites/onboard")
+    @app.post("/sites/onboard", response_model=None)
     async def onboard(payload: OnboardRequest) -> dict[str, Any]:
         if onboarding_runner is not None:
             result = await onboarding_runner(
@@ -208,10 +263,10 @@ def create_app(
 
     # ------------------------------------------------------- intent
 
-    @app.post("/intent")
+    @app.post("/intent", response_model=None)
     async def intent_endpoint(
-        payload: dict[str, Any] = Body(...),
-        decision: str | None = Query(default=None),
+        payload: dict[str, Any] = Body(..., description="Intent object per shared contract"),
+        decision: str | None = Query(default=None, description="'yes' or 'no' to resolve a staged confirmation"),
     ) -> JSONResponse:
         """Stage a confirmation-ready intent, or resolve a staged one.
 
@@ -278,16 +333,29 @@ def create_app(
         *,
         change_id: str | None = None,
     ) -> JSONResponse:
-        sites = services.sites.sites_for_owner(owner_id)
-        if not sites:
-            return _respond(
-                _result(
-                    "failed",
-                    change_id or f"ch-{uuid.uuid4().hex[:12]}",
-                    error_message="no onboarded site for this owner — complete onboarding first",
+        # Multi-site: resolve by site_id when present, else fall back to first site.
+        target_site_id = intent.get("site_id")
+        if target_site_id:
+            site = services.sites.get_site(target_site_id)
+            if site is None or site.owner_id != owner_id:
+                return _respond(
+                    _result(
+                        "failed",
+                        change_id or f"ch-{uuid.uuid4().hex[:12]}",
+                        error_message=f"site {target_site_id!r} not found for this owner",
+                    )
                 )
-            )
-        site = sites[0]
+        else:
+            sites = services.sites.sites_for_owner(owner_id)
+            if not sites:
+                return _respond(
+                    _result(
+                        "failed",
+                        change_id or f"ch-{uuid.uuid4().hex[:12]}",
+                        error_message="no onboarded site for this owner — complete onboarding first",
+                    )
+                )
+            site = sites[0]
         try:
             client = services.make_client(site)
         except Exception as exc:
@@ -304,25 +372,79 @@ def create_app(
         )
         return _respond(result)
 
+    # ------------------------------------------------------- sites list
+
+    @app.get("/sites/list", response_model=None)
+    async def list_sites(owner_id: str) -> dict[str, Any]:
+        """List all sites onboarded for this owner (multi-site support)."""
+        services = await get_services()
+        sites = services.sites.sites_for_owner(owner_id)
+        # Find which site is active (has active_site_id set).
+        active_id = None
+        for s in sites:
+            # Check the DB column directly for the active marker.
+            with services.sites._connect() as conn:
+                row = conn.execute(
+                    "SELECT active_site_id FROM onboarded_sites WHERE site_id = ?",
+                    (s.site_id,),
+                ).fetchone()
+                if row and row["active_site_id"]:
+                    active_id = s.site_id
+                    break
+        return {
+            "sites": [
+                {
+                    "site_id": s.site_id,
+                    "site_url": s.site_url,
+                    "status": s.status,
+                    "is_active": s.site_id == active_id,
+                }
+                for s in sites
+            ]
+        }
+
+    @app.post("/sites/{site_id}/active", response_model=None)
+    async def set_active_site(site_id: str, owner_id: str) -> dict[str, str]:
+        """Mark a site as the owner's active site (multi-site support)."""
+        services = await get_services()
+        site = services.sites.get_site(site_id)
+        if site is None or site.owner_id != owner_id:
+            raise HTTPException(status_code=404, detail="site not found for this owner")
+        services.sites.set_active_site(owner_id, site_id)
+        return {"status": "ok", "active_site_id": site_id}
+
     # ------------------------------------------------------- undo
 
-    @app.post("/undo")
+    @app.post("/undo", response_model=None)
     async def undo_endpoint(payload: UndoRequest) -> JSONResponse:
         """Reverse-apply the owner's most recent change (B4)."""
         services = await get_services()
-        sites = services.sites.sites_for_owner(payload.owner_id)
-        if not sites:
-            return _respond(
-                _result(
-                    "failed",
-                    f"ch-{uuid.uuid4().hex[:12]}",
-                    error_message="no onboarded site for this owner",
+        # Multi-site: resolve by site_id when present, else fall back to first site.
+        if payload.site_id:
+            site = services.sites.get_site(payload.site_id)
+            if site is None or site.owner_id != payload.owner_id:
+                return _respond(
+                    _result(
+                        "failed",
+                        f"ch-{uuid.uuid4().hex[:12]}",
+                        error_message=f"site {payload.site_id!r} not found for this owner",
+                    )
                 )
-            )
-        site = sites[0]
+        else:
+            sites = services.sites.sites_for_owner(payload.owner_id)
+            if not sites:
+                return _respond(
+                    _result(
+                        "failed",
+                        f"ch-{uuid.uuid4().hex[:12]}",
+                        error_message="no onboarded site for this owner",
+                    )
+                )
+            site = sites[0]
         client = services.make_client(site)
         outcome = await undo(
-            payload.owner_id, client, services.changelog, window=UNDO_WINDOW_SECONDS
+            payload.owner_id, client, services.changelog,
+            site_id=payload.site_id, window=UNDO_WINDOW_SECONDS
         )
         if outcome.status == "undone":
             return _respond(

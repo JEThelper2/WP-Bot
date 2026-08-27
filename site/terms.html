@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service — WP-Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "brand-navy": "#0B1220",
+            "brand-teal": "#0D9488",
+            "brand-mint": "#2DD4BF",
+            "surface": "#FFFFFF",
+            "surface-container-low": "#f2f4f3",
+            "surface-container": "#eceeed",
+            "surface-container-high": "#e6e9e8",
+            "text-primary": "#111827",
+            "text-secondary": "#64748B",
+            "border-soft": "#E2E8F0",
+            "success": "#16A34A",
+            "error": "#DC2626",
+            "on-surface-variant": "#45474c",
+            "secondary": "#006a61",
+            "secondary-container": "#86f2e4",
+            "on-secondary-container": "#006f66",
+            "primary-container": "#151b2a",
+            "on-primary-fixed": "#7d8496",
+            "inverse-primary": "#c0c6da",
+            "background": "#f8faf9",
+          },
+          fontFamily: { inter: ["Inter", "sans-serif"] },
+          maxWidth: { "container-max": "1280px" },
+          spacing: { "margin-mobile": "16px", "margin-desktop": "40px", "gutter": "24px" },
+          borderRadius: { "card": "0.75rem" },
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+  </style>
+</head>
+<body class="bg-background text-text-primary font-inter antialiased overflow-x-hidden">
+
+<!-- Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-border-soft">
+  <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+    <a class="text-xl font-bold text-brand-navy flex items-center gap-2" href="index.html">
+      <span class="material-symbols-outlined text-[28px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </a>
+    <div class="hidden md:flex items-center gap-8">
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#how-it-works">How it works</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#features">Features</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#pricing">Pricing</a>
+    </div>
+    <a class="bg-brand-navy text-white font-medium text-sm px-6 py-2.5 rounded-card hover:bg-brand-navy/90 transition-colors shadow-level-1" href="index.html#pricing">
+      Get started
+    </a>
+  </div>
+</nav>
+
+<main class="pt-[72px] max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-24">
+  <header class="mb-16 md:mb-24 max-w-3xl">
+    <h1 class="text-4xl md:text-[48px] font-bold tracking-tight text-text-primary mb-6">Terms of Service</h1>
+    <p class="text-lg text-text-secondary leading-relaxed">Last updated: October 26, 2024. Please read these terms carefully before using the WP-Bot platform.</p>
+  </header>
+
+  <div class="flex flex-col md:flex-row gap-gutter relative items-start">
+    <!-- Sidebar Navigation -->
+    <aside class="w-full md:w-64 shrink-0 md:sticky md:top-24 bg-surface rounded-xl shadow-sm border border-border-soft p-6 mb-8 md:mb-0 hidden md:block">
+      <nav>
+        <ul class="space-y-4 text-sm font-medium">
+          <li><a class="text-brand-teal flex items-center gap-2" href="#usage-policy"><span class="material-symbols-outlined text-[20px]">article</span> Usage Policy</a></li>
+          <li><a class="text-on-surface-variant hover:text-brand-teal transition-colors flex items-center gap-2" href="#data-privacy"><span class="material-symbols-outlined text-[20px]">shield</span> Data Privacy</a></li>
+          <li><a class="text-on-surface-variant hover:text-brand-teal transition-colors flex items-center gap-2" href="#service-limits"><span class="material-symbols-outlined text-[20px]">speed</span> Service Limits</a></li>
+          <li><a class="text-on-surface-variant hover:text-brand-teal transition-colors flex items-center gap-2" href="#user-approval"><span class="material-symbols-outlined text-[20px]">check_circle</span> User Approval</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 bg-surface rounded-xl shadow-sm border border-border-soft p-6 md:p-12 max-w-4xl">
+      <article class="space-y-12">
+        <section id="usage-policy">
+          <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary mb-6 border-b border-border-soft pb-4">1. Usage Policy</h2>
+          <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+            <p>By accessing or using the WP-Bot platform, you agree to be bound by these Terms. If you disagree with any part of the terms, you may not access the service.</p>
+            <p>You agree not to use the service for any unlawful purpose or in any way that interrupts, damages, or impairs the service. WP-Bot reserves the right to suspend or terminate access immediately, without prior notice or liability, for any reason whatsoever, including without limitation if you breach the Terms.</p>
+            <div class="bg-surface-container-low p-6 rounded-lg border-l-4 border-brand-teal mt-6">
+              <h4 class="text-sm font-semibold text-text-primary mb-2">Acceptable Use Guidelines</h4>
+              <ul class="list-disc pl-5 space-y-2 text-sm">
+                <li>Do not attempt to reverse engineer the AI models.</li>
+                <li>Do not use the service to generate harmful, illegal, or discriminatory content.</li>
+                <li>Maintain the security of your account credentials.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="data-privacy">
+          <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary mb-6 border-b border-border-soft pb-4">2. Data Privacy</h2>
+          <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+            <p>Your privacy is important to us. It is WP-Bot's policy to respect your privacy regarding any information we may collect from you across our website and other sites we own and operate.</p>
+            <p>We only ask for personal information when we truly need it to provide a service to you. We collect it by fair and lawful means, with your knowledge and consent. We also let you know why we're collecting it and how it will be used.</p>
+            <p>We do not share any personally identifying information publicly or with third-parties, except when required to by law.</p>
+          </div>
+        </section>
+
+        <section id="service-limits">
+          <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary mb-6 border-b border-border-soft pb-4">3. Service Limits</h2>
+          <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+            <p>To ensure fair usage and maintain system stability, WP-Bot imposes rate limits on API requests and general usage.</p>
+            <p>The standard tier allows for up to 1,000 requests per day. Exceeding this limit may result in temporary throttling or suspension of service until the next billing cycle. Enterprise customers should refer to their specific SLA documentation for custom limits.</p>
+          </div>
+        </section>
+
+        <section id="user-approval">
+          <h2 class="text-2xl md:text-[32px] font-semibold tracking-tight text-text-primary mb-6 border-b border-border-soft pb-4">4. User Approval</h2>
+          <div class="space-y-4 text-base text-on-surface-variant leading-relaxed">
+            <p>Certain actions within the platform, specifically those that involve publishing content or initiating automated workflows, require explicit user approval.</p>
+            <p>WP-Bot is not liable for any consequences arising from automated actions that were not explicitly reviewed and approved by the user if such an approval mechanism was bypassed or ignored.</p>
+          </div>
+        </section>
+      </article>
+
+      <div class="mt-16 pt-8 border-t border-border-soft flex flex-col sm:flex-row justify-between items-center gap-4">
+        <p class="text-xs text-text-secondary">Have questions about these terms?</p>
+        <a href="index.html" class="bg-brand-teal hover:bg-brand-mint text-white font-medium text-sm px-6 py-3 rounded-card transition-colors shadow-sm active:scale-95 inline-flex items-center gap-2">
+          Contact Support
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="bg-surface border-t border-border-soft w-full py-12 mt-16">
+  <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-6">
+    <div class="text-xl font-bold text-brand-navy flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </div>
+    <div class="flex gap-6">
+      <a class="text-brand-teal font-semibold text-sm" href="terms.html">Terms</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="privacy.html">Privacy</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="index.html">Home</a>
+    </div>
+    <div class="text-xs text-on-surface-variant text-center md:text-right">
+      © 2026 WP-Bot. Intelligent Simplicity.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

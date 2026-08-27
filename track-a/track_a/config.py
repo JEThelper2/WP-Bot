@@ -42,6 +42,7 @@ class Settings:
     ai_model: str = ""
     transcription_provider: str = "groq"
     admin_token: str = ""
+    telegram_bot_token: str = ""  # Telegram Bot API token for testing without WhatsApp
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -69,4 +70,5 @@ class Settings:
             ai_model=os.environ.get(f"{ai_provider.upper()}_MODEL", ""),
             transcription_provider=transcription_provider,
             admin_token=os.environ.get("ADMIN_TOKEN", ""),
+            telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
         )

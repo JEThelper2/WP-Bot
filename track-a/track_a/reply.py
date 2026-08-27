@@ -38,6 +38,10 @@ class WhatsAppReplySender:
 
     Falls back to logging when no api_token / phone_number_id is
     configured, so local dev still works without Meta credentials.
+
+    An ``httpx.AsyncClient`` must be injected via the constructor.  The
+    client's lifecycle is managed by the application (FastAPI lifespan),
+    not by this class — so it is never closed mid-request.
     """
 
     def __init__(
@@ -72,11 +76,6 @@ class WhatsAppReplySender:
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
         }
-        client = self._client or httpx.AsyncClient()
-        try:
-            resp = await client.post(url, json=payload, headers=headers, timeout=30.0)
-            resp.raise_for_status()
-            logger.info("sent WhatsApp message to %s (status %s)", to, resp.status_code)
-        finally:
-            if self._client is None:
-                await client.aclose()
+        resp = await self._client.post(url, json=payload, headers=headers, timeout=30.0)
+        resp.raise_for_status()
+        logger.info("sent WhatsApp message to %s (status %s)", to, resp.status_code)

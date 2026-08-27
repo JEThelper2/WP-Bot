@@ -16,30 +16,19 @@ from __future__ import annotations
 from integration_harness import OWNER, SITE, build_world, send
 from wp_fake import FakeWordPress
 
-from track_a.onboarding import (
-    ONBOARD_CANCELLED,
-    ONBOARD_INSUFFICIENT_PERMISSIONS,
-    ONBOARD_INVALID_CREDENTIALS,
-    ONBOARD_INVALID_URL,
-    ONBOARD_NOT_WORDPRESS,
-    ONBOARD_STEP_APP_PASSWORD,
-    ONBOARD_STEP_URL,
-    ONBOARD_STEP_USERNAME,
-    ONBOARD_SUCCESS,
-    ONBOARD_UNREACHABLE,
-)
+from track_a.i18n import translate
 
 
 def complete_conversation(world, *, password: str = "app-pass") -> None:
     """Drive the full happy-path walkthrough, stopping after the password."""
     send(world.client, "set up my website", "wamid.ob.1")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_URL
+    assert world.sender.sent[-1][1] == translate("onboard_step_url")
 
     send(world.client, SITE, "wamid.ob.2")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_USERNAME.format(url=SITE)
+    assert world.sender.sent[-1][1] == translate("onboard_step_username", url=SITE)
 
     send(world.client, "editor", "wamid.ob.3")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_APP_PASSWORD
+    assert world.sender.sent[-1][1] == translate("onboard_step_app_password")
 
     send(world.client, password, "wamid.ob.4")
 
@@ -52,7 +41,7 @@ def test_onboarding_success_end_to_end(tmp_path):
     # Success message: connection confirmed + example phrasings for the
     # three supported content types (job / announcement / business_info).
     last = world.sender.sent[-1][1]
-    assert last == ONBOARD_SUCCESS.format(url=SITE)
+    assert last == translate("onboard_success", url=SITE)
     assert "Post a job" in last
     assert "announcement" in last
     assert "Change my hours to 9-6" in last
@@ -73,13 +62,13 @@ def test_onboarding_invalid_url_is_rejected_locally(tmp_path):
     send(world.client, "set up my website", "wamid.ob.1")
     send(world.client, "not a website", "wamid.ob.2")
 
-    assert world.sender.sent[-1][1] == ONBOARD_INVALID_URL
+    assert world.sender.sent[-1][1] == translate("onboard_invalid_url")
     # Caught locally — Track B was never bothered with garbage.
     assert world.fake_wp.requests == []
 
     # Still awaiting the URL: a valid one proceeds.
     send(world.client, SITE, "wamid.ob.3")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_USERNAME.format(url=SITE)
+    assert world.sender.sent[-1][1] == translate("onboard_step_username", url=SITE)
 
 
 def test_onboarding_invalid_credentials_then_retry(tmp_path):
@@ -87,13 +76,13 @@ def test_onboarding_invalid_credentials_then_retry(tmp_path):
     world = build_world(tmp_path, fake=fake, seed_site=False)
 
     complete_conversation(world, password="wrong-pass")
-    assert world.sender.sent[-1][1] == ONBOARD_INVALID_CREDENTIALS
+    assert world.sender.sent[-1][1] == translate("onboard_invalid_credentials")
     # Only the password was wrong: URL + username kept, still active.
     assert world.router.onboarding.is_active(OWNER) is True
 
     # Re-sending just the password completes the walkthrough.
     send(world.client, "correct-pass", "wamid.ob.5")
-    assert world.sender.sent[-1][1] == ONBOARD_SUCCESS.format(url=SITE)
+    assert world.sender.sent[-1][1] == translate("onboard_success", url=SITE)
     assert world.services.sites.sites_for_owner(OWNER)
 
 
@@ -102,11 +91,11 @@ def test_onboarding_insufficient_permissions(tmp_path):
     world = build_world(tmp_path, fake=fake, seed_site=False)
 
     complete_conversation(world)
-    assert world.sender.sent[-1][1] == ONBOARD_INSUFFICIENT_PERMISSIONS
+    assert world.sender.sent[-1][1] == translate("onboard_insufficient_permissions")
     # The flow asks for an Editor-level user again (back to the username
     # step — the next reply asks for the application password).
     send(world.client, "editor", "wamid.ob.5")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_APP_PASSWORD
+    assert world.sender.sent[-1][1] == translate("onboard_step_app_password")
     # Nothing was persisted.
     assert world.services.sites.sites_for_owner(OWNER) == []
 
@@ -117,10 +106,10 @@ def test_onboarding_unreachable_site(tmp_path):
     world = build_world(tmp_path, fake=fake, seed_site=False)
 
     complete_conversation(world)
-    assert world.sender.sent[-1][1] == ONBOARD_UNREACHABLE.format(url=SITE)
+    assert world.sender.sent[-1][1] == translate("onboard_unreachable", url=SITE)
     # Back to the URL step: a fresh URL starts the walkthrough again.
     send(world.client, SITE, "wamid.ob.5")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_USERNAME.format(url=SITE)
+    assert world.sender.sent[-1][1] == translate("onboard_step_username", url=SITE)
 
 
 def test_onboarding_not_wordpress_site(tmp_path):
@@ -130,7 +119,7 @@ def test_onboarding_not_wordpress_site(tmp_path):
     world = build_world(tmp_path, fake=fake, seed_site=False)
 
     complete_conversation(world)
-    assert world.sender.sent[-1][1] == ONBOARD_NOT_WORDPRESS
+    assert world.sender.sent[-1][1] == translate("onboard_not_wordpress")
     assert world.services.sites.sites_for_owner(OWNER) == []
 
 
@@ -139,9 +128,9 @@ def test_onboarding_cancel_aborts_cleanly(tmp_path):
 
     send(world.client, "set up my website", "wamid.ob.1")
     send(world.client, "cancel", "wamid.ob.2")
-    assert world.sender.sent[-1][1] == ONBOARD_CANCELLED
+    assert world.sender.sent[-1][1] == translate("onboard_cancelled")
     assert world.router.onboarding.is_active(OWNER) is False
 
     # A fresh trigger restarts the walkthrough from step 1.
     send(world.client, "set up my website", "wamid.ob.3")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_URL
+    assert world.sender.sent[-1][1] == translate("onboard_step_url")

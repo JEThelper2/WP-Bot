@@ -31,10 +31,7 @@ from integration_harness import OWNER, build_world, most_recent, send
 from shared_contract import CONTRACT_VERSION
 from track_a.composer import compose_completion, compose_confirmation
 from track_a.intent import IntentParseResult
-from track_a.routing import (
-    ESCALATION_CONFIRM_REPLY,
-    ESCALATION_REPLY_TEXT,
-)
+from track_a.i18n import translate
 
 JOB_INTENT = {
     "contract_version": CONTRACT_VERSION,
@@ -160,11 +157,11 @@ def test_escalation_flow_end_to_end(tmp_path):
 
     # Out-of-scope request -> the fixed escalation message.
     send(world.client, "redesign my homepage", "wamid.esc.1")
-    assert world.sender.sent[-1] == (OWNER, ESCALATION_REPLY_TEXT)
+    assert world.sender.sent[-1] == (OWNER, translate("escalation_reply"))
 
     # YES -> escalation logged, owner confirmed.
     send(world.client, "yes", "wamid.esc.2")
-    assert world.sender.sent[-1] == (OWNER, ESCALATION_CONFIRM_REPLY)
+    assert world.sender.sent[-1] == (OWNER, translate("escalation_confirm"))
 
     # Logged and retrievable (PRD §10) for a human to pick up.
     resp = world.client.get("/escalations")

@@ -25,12 +25,7 @@ import httpx
 import pytest
 from integration_harness import OWNER, build_world, send
 
-from track_a.onboarding import (
-    ONBOARD_INVALID_CREDENTIALS,
-    ONBOARD_STEP_URL,
-    ONBOARD_SUCCESS,
-    ONBOARD_UNREACHABLE,
-)
+from track_a.i18n import translate
 
 _SANDBOX_PASSWORD_FILE = (
     Path(__file__).resolve().parent.parent / "wp-sandbox" / "_output" / "app-password.txt"
@@ -63,14 +58,14 @@ def test_onboarding_success_against_real_sandbox(tmp_path):
     world = build_world(tmp_path, seed_site=False, probe_through_fake=False)
 
     send(world.client, "set up my website", "wamid.sb.1")
-    assert world.sender.sent[-1][1] == ONBOARD_STEP_URL
+    assert world.sender.sent[-1][1] == translate("onboard_step_url")
 
     send(world.client, WP_URL, "wamid.sb.2")
     send(world.client, WP_USERNAME, "wamid.sb.3")
     send(world.client, WP_APP_PASSWORD, "wamid.sb.4")
 
     # Real B5 probe succeeded against the sandbox.
-    assert world.sender.sent[-1][1] == ONBOARD_SUCCESS.format(url=WP_URL)
+    assert world.sender.sent[-1][1] == translate("onboard_success", url=WP_URL)
     sites = world.services.sites.sites_for_owner(OWNER)
     assert len(sites) == 1
     assert sites[0].site_url == WP_URL
@@ -85,7 +80,7 @@ def test_onboarding_invalid_credentials_against_real_sandbox(tmp_path):
     send(world.client, WP_USERNAME, "wamid.sb.13")
     send(world.client, "DefinitelyWrongPassword123", "wamid.sb.14")
 
-    assert world.sender.sent[-1][1] == ONBOARD_INVALID_CREDENTIALS
+    assert world.sender.sent[-1][1] == translate("onboard_invalid_credentials")
     assert world.services.sites.sites_for_owner(OWNER) == []
 
 
@@ -97,7 +92,7 @@ def test_onboarding_unreachable_site_against_real_sandbox(tmp_path):
     send(world.client, WP_USERNAME, "wamid.sb.23")
     send(world.client, WP_APP_PASSWORD, "wamid.sb.24")
 
-    assert world.sender.sent[-1][1] == ONBOARD_UNREACHABLE.format(
+    assert world.sender.sent[-1][1] == translate("onboard_unreachable",
         url="https://wpbot-does-not-exist.invalid"
     )
     assert world.services.sites.sites_for_owner(OWNER) == []

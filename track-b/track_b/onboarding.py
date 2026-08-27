@@ -33,7 +33,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+
+from shared_contract import normalize_url
 
 from .allowlist import PILOT_SITE_CONFIG, SiteConfig, config_from_dict, config_to_dict
 from .secrets import Vault
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS onboarded_sites (
     encrypted_password TEXT NOT NULL,
     allowlist_config  TEXT NOT NULL,
     status            TEXT NOT NULL DEFAULT 'active',
+    active_site_id    TEXT,
     created_at        TEXT NOT NULL
 );
 """
@@ -101,11 +103,19 @@ class OnboardedSiteStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.execute(_SCHEMA)
+            self._migrate(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
         return conn
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        """Add columns added after the original schema."""
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(onboarded_sites)")}
+        if "active_site_id" not in existing:
+            conn.execute("ALTER TABLE onboarded_sites ADD COLUMN active_site_id TEXT")
 
     def add_site(
         self,
@@ -197,6 +207,19 @@ class OnboardedSiteStore:
                 (status, site_id),
             )
 
+    def set_active_site(self, owner_id: str, site_id: str) -> None:
+        """Mark a site as the owner's active site (multi-site support)."""
+        with self._connect() as conn:
+            # Clear previous active marker for this owner.
+            conn.execute(
+                "UPDATE onboarded_sites SET active_site_id = NULL WHERE owner_id = ?",
+                (owner_id,),
+            )
+            conn.execute(
+                "UPDATE onboarded_sites SET active_site_id = ? WHERE site_id = ?",
+                (site_id, site_id),
+            )
+
     def list_all_sites(self) -> list[OnboardedSite]:
         """Return all onboarded sites, newest first."""
         with self._connect() as conn:
@@ -232,18 +255,8 @@ class OnboardedSiteStore:
 # ---------------------------------------------------------------------------
 
 
-def _normalize_url(raw: str) -> str | None:
-    """Return a normalized http(s) URL, or None if the input is invalid."""
-    raw = (raw or "").strip()
-    if not raw:
-        return None
-    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        return None
-    host = parsed.netloc.split("@")[-1].split(":")[0]
-    if not host or "." not in host and host not in ("localhost",):
-        return None
-    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+# Re-export the shared normalization as _normalize_url for local use.
+_normalize_url = normalize_url
 
 
 def has_edit_permissions(user: dict[str, Any]) -> bool:

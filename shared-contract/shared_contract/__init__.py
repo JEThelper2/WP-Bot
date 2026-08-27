@@ -7,6 +7,7 @@ message at their boundary — never trust the other side.
 See the README in this directory for the full contract rules.
 """
 
+from .url import normalize_url
 from .validator import (
     CONTRACT_VERSION,
     ContractValidationError,
@@ -17,6 +18,7 @@ from .validator import (
 __all__ = [
     "CONTRACT_VERSION",
     "ContractValidationError",
+    "normalize_url",
     "validate_intent",
     "validate_result",
 ]

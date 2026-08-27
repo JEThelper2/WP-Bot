@@ -29,10 +29,14 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
+
+from shared_contract.logging import setup_logging
 
 from .admin import router as admin_router
 from .ai_provider import get_provider
@@ -40,9 +44,12 @@ from .config import Settings
 from .dashboard import router as dashboard_router
 from .intent import IntentParser
 from .media import WhatsAppMediaClient
+from .metrics import metrics
 from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
-from .reply import WhatsAppReplySender
+from .ratelimit import RateLimiter
+from .reply import ReplySender, WhatsAppReplySender
+from .telegram import TelegramReplySender, handle_telegram_update
 from .routing import IntentRouter
 from .signature import verify_webhook_signature
 from .store import (
@@ -73,12 +80,18 @@ def create_app(
     processor: MessageProcessor | None = None,
     router: IntentRouter | None = None,
 ) -> FastAPI:
+    setup_logging()
     settings = settings or Settings.from_env()
     init_db(settings.db_path)
+
+    # Shared httpx.AsyncClient — lifecycle managed by the FastAPI lifespan.
+    shared_client = httpx.AsyncClient()
+
     sender = WhatsAppReplySender(
         api_token=settings.api_token,
         phone_number_id=settings.phone_number_id,
         api_version=settings.api_version,
+        client=shared_client,
     )
     if processor is None:
         # Wire the transcription provider from config (Dependency Inversion):
@@ -91,13 +104,14 @@ def create_app(
             media_client=WhatsAppMediaClient(
                 api_token=settings.api_token,
                 api_version=settings.api_version,
+                client=shared_client,
             ),
             transcriber=transcriber,
             sender=sender,
         )
 
     if router is None:
-        trackb = TrackBClient(base_url=settings.track_b_url)
+        trackb = TrackBClient(base_url=settings.track_b_url, client=shared_client)
         # Wire the AI provider from config (Dependency Inversion):
         # the router/parser never knows which backend is in use.
         provider_kwargs: dict[str, str] = {}
@@ -119,6 +133,13 @@ def create_app(
             log_escalation=lambda owner, msg: log_escalation_request(settings.db_path, owner, msg),
         )
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        # Startup: shared_client is already created above.
+        yield
+        # Shutdown: close the shared httpx.AsyncClient.
+        await shared_client.aclose()
+
     app = FastAPI(
         title="WP-Bot Track A (WhatsApp conversation service)",
         version="0.1.0",
@@ -127,11 +148,40 @@ def create_app(
             "handshake, logs inbound messages, and (later) turns them into "
             "intent objects for Track B."
         ),
+        lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.processor = processor
     app.state.router = router
     app.state.admin_token = settings.admin_token
+    # Per-owner rate limiter: 30 messages per 60s window.
+    app.state.rate_limiter = RateLimiter(max_requests=30, window_seconds=60)
+
+    # --- Telegram adapter (for testing without WhatsApp) -----------------------
+    tg_sender: TelegramReplySender | ReplySender | None = None
+    if settings.telegram_bot_token:
+        tg_sender = TelegramReplySender(
+            bot_token=settings.telegram_bot_token,
+            client=shared_client,
+        )
+        # If no WhatsApp credentials, use the Telegram sender as the
+        # default reply channel so the pipeline works end-to-end.
+        if not settings.api_token:
+            sender = tg_sender
+            # Re-build router with the Telegram sender so all replies
+            # go through Telegram.
+            router = IntentRouter(
+                parser=router.parser,
+                sender=sender,
+                trackb=router.trackb,
+                onboarding=router.onboarding,
+                log_escalation=router.log_escalation,
+                active_sites=router.active_sites,
+            )
+        app.state.tg_sender = tg_sender
+        logger.info("Telegram adapter enabled (bot token configured)")
+    else:
+        app.state.tg_sender = None
 
     # Internal admin views (PRD §10 + dashboard).
     # Dashboard must be registered first to avoid /admin/dashboard being
@@ -141,7 +191,89 @@ def create_app(
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "service": "track-a"}
+        """Liveness + basic readiness check (SQLite reachable)."""
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(str(settings.db_path))
+            conn.execute("SELECT 1")
+            conn.close()
+            db_ok = True
+        except Exception:
+            db_ok = False
+        status = "ok" if db_ok else "degraded"
+        return {"status": status, "service": "track-a", "db": "ok" if db_ok else "unreachable"}
+
+    @app.get("/metrics")
+    async def metrics_endpoint() -> PlainTextResponse:
+        """Prometheus-style metrics in text exposition format."""
+        return PlainTextResponse(metrics.render(), media_type="text/plain")
+
+    # --- Telegram adapter endpoints (for testing without WhatsApp) ----------
+
+    @app.post("/telegram/webhook")
+    async def telegram_webhook(request: Request) -> dict[str, str]:
+        """Receive Telegram Bot API updates.
+
+        Set this URL as the Telegram webhook via BotFather's setWebhook
+        command, or call it directly for manual testing:
+
+            curl -X POST http://localhost:8000/telegram/webhook \
+              -H 'Content-Type: application/json' \
+              -d '{"message": {"chat": {"id": 123456}, "text": "hello"}}'
+        """
+        try:
+            payload: Any = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+        if not settings.telegram_bot_token:
+            raise HTTPException(status_code=503, detail="Telegram not configured (set TELEGRAM_BOT_TOKEN)")
+
+        return await handle_telegram_update(
+            payload,
+            router=app.state.router,
+        )
+
+    @app.get("/telegram/poll")
+    async def telegram_poll() -> dict[str, Any]:
+        """Long-poll Telegram for updates (dev mode).
+
+        Call this periodically (e.g. from a script or cron) to process
+        incoming Telegram messages.  Each call fetches one batch of
+        pending updates and processes them through the pipeline.
+        """
+        if not settings.telegram_bot_token:
+            raise HTTPException(status_code=503, detail="Telegram not configured (set TELEGRAM_BOT_TOKEN)")
+
+        import httpx as _httpx
+
+        async with _httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{settings.telegram_bot_token}/getUpdates",
+                params={"timeout": 5, "offset": -1},
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        processed = 0
+        for update in data.get("result", []):
+            await handle_telegram_update(update, router=app.state.router)
+            processed += 1
+
+        return {"status": "ok", "processed": processed}
+
+    @app.post("/telegram/send")
+    async def telegram_send(chat_id: str, text: str) -> dict[str, str]:
+        """Manual send endpoint for testing (debug tool)."""
+        if not settings.telegram_bot_token:
+            raise HTTPException(status_code=503, detail="Telegram not configured")
+        sender = TelegramReplySender(bot_token=settings.telegram_bot_token, client=shared_client)
+        await sender.send(chat_id, text)
+        return {"status": "ok"}
+
+    # --- WhatsApp webhook ---------------------------------------------------
 
     @app.get("/webhook")
     async def verify_webhook(
@@ -200,17 +332,28 @@ def create_app(
 
         received = 0
         duplicates = 0
+        rate_limited = 0
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 # `statuses` entries are delivery receipts — not messages,
                 # nothing to log, and we must still answer 200.
                 for msg in value.get("messages", []):
+                    owner_phone = str(msg.get("from") or "")
+                    if owner_phone and app.state.rate_limiter.is_rate_limited(owner_phone):
+                        rate_limited += 1
+                        metrics.inc("messages_rate_limited")
+                        logger.warning(
+                            "rate-limited message from owner %s", owner_phone
+                        )
+                        continue
                     row_id = _log_message(settings.db_path, msg)
                     if row_id is None:
                         duplicates += 1
+                        metrics.inc("messages_duplicate")
                         continue
                     received += 1
+                    metrics.inc("messages_received")
                     # Run the inbound pipeline (text normalize / voice
                     # transcription). Blocking transcription belongs on a
                     # queue in production; fine inline at this stage.
@@ -221,11 +364,17 @@ def create_app(
                     await _route_message(app, settings.db_path, row_id)
 
         logger.info(
-            "webhook delivery: %d new message(s), %d duplicate(s)",
+            "webhook delivery: %d new message(s), %d duplicate(s), %d rate-limited",
             received,
             duplicates,
+            rate_limited,
         )
-        return {"status": "ok", "received": received, "duplicates": duplicates}
+        return {
+            "status": "ok",
+            "received": received,
+            "duplicates": duplicates,
+            "rate_limited": rate_limited,
+        }
 
     @app.get("/messages")
     async def messages() -> dict[str, Any]:
@@ -300,4 +449,7 @@ def _content_json(obj: object) -> str:
     return json.dumps(obj, separators=(",", ":"), sort_keys=True)
 
 
-app = create_app()
+# Module-level app instance for ASGI servers (uvicorn track_a.main:app).
+# Created lazily to avoid SQLite lock conflicts when importing in tests.
+def _get_app() -> FastAPI:
+    return create_app()

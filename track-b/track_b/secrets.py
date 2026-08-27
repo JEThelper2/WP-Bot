@@ -89,7 +89,9 @@ class CredentialStore:
             conn.execute(_CREDENTIALS_SCHEMA)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
 
     def set_credentials(self, site_url: str, username: str, app_password: str) -> None:
         """Encrypt and persist. Never stores plaintext."""

@@ -1,9 +1,7 @@
 """Lightweight persistence for inbound WhatsApp messages.
 
 A single SQLite table for now — this is the Track A message log, not the
-Track B change-log system (that lives on the WordPress side later). One
-connection per operation keeps things simple and thread-safe enough for
-this stage.
+Track B change-log system (that lives on the WordPress side later).
 
 Design notes:
 - `wam_id` (Meta's message id) is UNIQUE: Meta redelivers webhooks, so
@@ -17,6 +15,9 @@ Design notes:
   (next milestone) reads only this field — rows without one are skipped.
 - `processing_status` tracks pipeline state: new | text | transcribed |
   low_confidence | failed | unsupported.
+
+WAL mode is enabled on every connection to improve concurrent read/write
+performance under FastAPI's async workers.
 """
 
 from __future__ import annotations
@@ -57,6 +58,9 @@ CREATE TABLE IF NOT EXISTS escalation_requests (
 def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # WAL mode allows concurrent readers while a write is in progress,
+    # which is important under FastAPI's async webhook handling.
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 

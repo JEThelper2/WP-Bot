@@ -60,7 +60,9 @@ class ChangeRow:
 class ChangeLog(Protocol):
     async def record_change(self, row: ChangeRow) -> ChangeRow: ...
 
-    async def most_recent(self, owner_id: str) -> ChangeRow | None: ...
+    async def most_recent(
+        self, owner_id: str, *, site_id: str | None = None
+    ) -> ChangeRow | None: ...
 
     async def get(self, change_id: str) -> ChangeRow | None: ...
 
@@ -104,8 +106,17 @@ class InMemoryChangeLog:
         self._rows.append((self._seq, stamped))
         return stamped
 
-    async def most_recent(self, owner_id: str) -> ChangeRow | None:
+    async def most_recent(
+        self, owner_id: str, *, site_id: str | None = None
+    ) -> ChangeRow | None:
         owned = [r for _, r in self._rows if r.owner_id == owner_id]
+        if site_id is not None:
+            # When site_id is given, prefer changes whose intent carried
+            # that site_id (stored in the change's "after" state).
+            owned = [
+                r for r in owned
+                if isinstance(r.after, dict) and r.after.get("site_id") == site_id
+            ] or owned  # fall back to owner-level if no site-specific change found
         if not owned:
             return None
         return max(owned, key=lambda r: (r.timestamp, self._order(r)))
@@ -216,8 +227,27 @@ class PostgresChangeLog:
             created_at=created_at,
         )
 
-    async def most_recent(self, owner_id: str) -> ChangeRow | None:
+    async def most_recent(
+        self, owner_id: str, *, site_id: str | None = None
+    ) -> ChangeRow | None:
         async with self._pool.acquire() as conn:
+            # When site_id is given, prefer changes whose "after" JSON
+            # state carried that site_id (injected by Track A's intent).
+            if site_id is not None:
+                row = await conn.fetchrow(
+                    """
+                    SELECT * FROM change_log
+                    WHERE owner_id = $1
+                      AND after::jsonb ->> 'site_id' = $2
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    owner_id,
+                    site_id,
+                )
+                if row:
+                    return _row_from_record(row)
+            # Fall back to owner-level (most recent change regardless of site).
             row = await conn.fetchrow(
                 """
                 SELECT * FROM change_log
@@ -233,6 +263,50 @@ class PostgresChangeLog:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM change_log WHERE change_id = $1", change_id)
         return _row_from_record(row) if row else None
+
+    async def list_changes(
+        self,
+        *,
+        owner_id: str | None = None,
+        content_type: str | None = None,
+        action: str | None = None,
+        limit: int = 100,
+    ) -> list[ChangeRow]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        idx = 1
+        if owner_id:
+            clauses.append(f"owner_id = ${idx}")
+            params.append(owner_id)
+            idx += 1
+        if content_type:
+            clauses.append(f"content_type = ${idx}")
+            params.append(content_type)
+            idx += 1
+        if action:
+            clauses.append(f"action = ${idx}")
+            params.append(action)
+            idx += 1
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(limit)
+        query = f"SELECT * FROM change_log{where} ORDER BY created_at DESC LIMIT ${idx}"
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return [_row_from_record(r) for r in rows]
+
+    async def count_by_action(self) -> dict[str, int]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT action, COUNT(*) AS n FROM change_log GROUP BY action"
+            )
+        return {r["action"]: r["n"] for r in rows}
+
+    async def count_failed(self) -> int:
+        async with self._pool.acquire() as conn:
+            n = await conn.fetchval(
+                "SELECT COUNT(*) FROM change_log WHERE action = 'failed'"
+            )
+        return n or 0
 
 
 def _json(value: Any) -> Any:

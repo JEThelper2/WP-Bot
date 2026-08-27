@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block body %}
+<a href="/admin/dashboard/sites" style="display:inline-block;margin-bottom:16px;color:#3498db;font-weight:500;text-decoration:none;">← Back to Sites</a>
+
+{% if site %}
+<div class="card" style="margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">{{ site.site_url or owner_id }}</h2>
+        <span class="badge" style="background:{{ site.status|default('unknown', true)|status_color }};">{{ site.status|default('unknown', true) }}</span>
+    </div>
+    <div style="margin-top:8px;color:#666;font-size:0.9em;">
+        <strong>Owner:</strong> {{ owner_id }} &nbsp;|&nbsp;
+        <strong>Site ID:</strong> {{ site.site_id }} &nbsp;|&nbsp;
+        <strong>Created:</strong> {{ site.created_at[:19] if site.created_at else '' }}
+        {% if site.site_url %}&nbsp;|&nbsp; <a href="{{ site.site_url }}" target="_blank">Open site →</a>{% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:20px;">
+    <h2 style="margin:0;">Owner: {{ owner_id }}</h2>
+    <p style="color:#888;">No site record found for this owner.</p>
+</div>
+{% endif %}
+
+<div class="grid" style="margin-bottom:20px;">
+    {% for act in ['create', 'update', 'delete', 'undo', 'failed'] %}
+    <div class="card" style="text-align:center;">
+        <div class="card-num" style="color:{{ act|status_color }};font-size:1.5em;">{{ site_stats.get(act, 0) }}</div>
+        <div class="card-label">{{ act }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<h2>Change History ({{ total_changes }})</h2>
+<form class="filters" method="GET" action="/admin/dashboard/sites/{{ owner_id }}">
+    <label>Type:
+        <select name="content_type">
+            <option value="">All</option>
+            {% for ct in ['job', 'announcement', 'business_info', 'image'] %}
+            <option value="{{ ct }}" {% if content_type == ct %}selected{% endif %}>{{ ct }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Action:
+        <select name="action">
+            <option value="">All</option>
+            {% for a in ['create', 'update', 'delete', 'undo', 'failed'] %}
+            <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>From: <input type="date" name="date_from" value="{{ date_from or '' }}"></label>
+    <label>To: <input type="date" name="date_to" value="{{ date_to or '' }}"></label>
+    <button type="submit">Filter</button>
+    <a href="/admin/dashboard/sites/{{ owner_id }}" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
+</form>
+
+<table>
+    <thead>
+        <tr><th>ID</th><th>Type</th><th>Action</th><th>Summary</th><th>Time</th></tr>
+    </thead>
+    <tbody>
+        {% for c in changes %}
+        <tr>
+            <td><code>{{ c.change_id[:12] }}</code></td>
+            <td>{{ c.content_type|default('', true)|badge }}</td>
+            <td>{{ c.action|default('', true)|badge }}</td>
+            <td>{{ c.after_summary }}</td>
+            <td class="timestamp">{{ c.created_at[:19] if c.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not changes %}
+        <tr><td colspan="5" class="empty-state">No changes recorded for this site.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

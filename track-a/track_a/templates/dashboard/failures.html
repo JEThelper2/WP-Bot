@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block body %}
+<form class="filters" method="GET" action="/admin/dashboard/failures">
+    <label>From: <input type="date" name="date_from" value="{{ date_from or '' }}"></label>
+    <label>To: <input type="date" name="date_to" value="{{ date_to or '' }}"></label>
+    <button type="submit">Filter</button>
+    <a href="/admin/dashboard/failures" style="padding:6px 12px;background:#95a5a6;color:white;border-radius:4px;text-decoration:none;">Clear</a>
+</form>
+<table>
+    <thead>
+        <tr><th>ID</th><th>Owner</th><th>Type</th><th>Error</th><th>Time</th></tr>
+    </thead>
+    <tbody>
+        {% for f in failures %}
+        <tr>
+            <td><code>{{ f.change_id[:12] }}</code></td>
+            <td>{{ f.owner_id }}</td>
+            <td>{{ f.content_type|default('', true)|badge }}</td>
+            <td>{{ f.error_message[:120] }}</td>
+            <td class="timestamp">{{ f.created_at[:19] if f.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not failures %}
+        <tr><td colspan="5" class="empty-state" style="color:#27ae60;font-weight:bold;">✓ No recent failures — all writes succeeded!</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

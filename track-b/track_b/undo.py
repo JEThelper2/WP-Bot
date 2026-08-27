@@ -89,11 +89,18 @@ async def undo(
     client: WordPressClient,
     changelog: ChangeLog,
     *,
+    site_id: str | None = None,
     now_fn: Any = time.time,
     window: int = UNDO_WINDOW_SECONDS,
 ) -> UndoResult:
-    """Undo the owner's most recent change, or explain why not."""
-    row = await changelog.most_recent(owner_id)
+    """Undo the owner's most recent change, or explain why not.
+
+    When *site_id* is provided, the undo is scoped to that site: only
+    changes whose logged ``after`` state carried the same site_id are
+    considered.  Falls back to owner-level if no site-specific change
+    is found.
+    """
+    row = await changelog.most_recent(owner_id, site_id=site_id)
     if row is None:
         return UndoResult("nothing_to_undo", "no changes found to undo for this owner")
 

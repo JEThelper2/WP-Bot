@@ -165,7 +165,7 @@ class RetryableProvider:
     """Wraps an ``AIProvider`` with retry-on-malformed-JSON and timeout.
 
     - On malformed JSON or non-dict output: retries once with a
-      corrective follow-up prompt.
+      corrective follow-up prompt and a small delay between attempts.
     - On rate-limit (429): re-raises immediately so ``FallbackChain``
       can try a secondary provider — does NOT retry on the same provider.
     - On timeout or any other exception after retry: raises so the caller
@@ -178,10 +178,16 @@ class RetryableProvider:
     # Timeout for a single LLM call (seconds).
     TIMEOUT = 15.0
 
+    # Base delay (seconds) for retry backoff.  Capped at 2s.
+    _RETRY_BASE_DELAY = 0.5
+    _RETRY_MAX_DELAY = 2.0
+
     def __init__(self, inner: AIProvider) -> None:
         self._inner = inner
 
     async def complete_json(self, *, system: str, user: str) -> dict[str, Any]:
+        import random
+
         first_exc: Exception | None = None
 
         for attempt in range(2):
@@ -201,7 +207,11 @@ class RetryableProvider:
                     exc,
                 )
                 first_exc = first_exc or exc
-                # Retry with a corrective follow-up
+                # Retry with a corrective follow-up + exponential backoff
+                delay = min(self._RETRY_BASE_DELAY * (2 ** attempt), self._RETRY_MAX_DELAY)
+                jittered = random.uniform(0, delay)
+                logger.info("LLM retry: sleeping %.2fs before corrective prompt", jittered)
+                await asyncio.sleep(jittered)
                 user = (
                     f"{user}\n\n"
                     "IMPORTANT: Your previous response was not valid JSON. "

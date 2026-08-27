@@ -13,13 +13,9 @@ from typing import Any
 from shared_contract import CONTRACT_VERSION
 from track_a import store
 from track_a.intent import IntentParseResult
+from track_a.i18n import translate
 from track_a.routing import (
     CLARIFICATION_MAX_TURNS,
-    ESCALATION_CONFIRM_REPLY,
-    ESCALATION_DECLINE_REPLY,
-    ESCALATION_REPLY_TEXT,
-    NO_INTENT_QUESTION,
-    STILL_UNSURE_REPLY_TEXT,
     IntentRouter,
 )
 from track_a.session import SessionStore
@@ -202,7 +198,7 @@ def test_no_intent_at_all_asks_to_rephrase():
     router = make_router(ScriptedParser(IntentParseResult(status="low_confidence")))
     outcome = handle(router, "blah blah")
     assert outcome.branch == "clarify"
-    assert outcome.reply_text == NO_INTENT_QUESTION
+    assert outcome.reply_text == translate("no_intent_question")
 
 
 def test_image_create_without_media_asks_for_the_image():
@@ -267,7 +263,7 @@ def test_clarification_loop_caps_at_max_turns():
 
     outcome = handle(router, f"attempt {CLARIFICATION_MAX_TURNS + 1}")
     assert outcome.branch == "clarify"
-    assert outcome.reply_text == STILL_UNSURE_REPLY_TEXT
+    assert outcome.reply_text == translate("still_unsure")
     assert outcome.reason == "max_turns"
     assert router.sessions.get(OWNER) is None
 
@@ -280,7 +276,7 @@ def test_mid_clarification_message_that_is_unsupported_escalates():
     assert handle(router, "post a job").branch == "clarify"
     outcome = handle(router, "actually, redesign my whole site")
     assert outcome.branch == "escalate"
-    assert outcome.reply_text == ESCALATION_REPLY_TEXT
+    assert outcome.reply_text == translate("escalation_reply")
 
 
 # ---------------------------------------------------------------- escalate
@@ -290,7 +286,7 @@ def test_unsupported_sends_escalation_message():
     router = make_router(ScriptedParser(IntentParseResult(status="unsupported")))
     outcome = handle(router, "redesign my homepage")
     assert outcome.branch == "escalate"
-    assert outcome.reply_text == ESCALATION_REPLY_TEXT
+    assert outcome.reply_text == translate("escalation_reply")
     state = router.sessions.get(OWNER)
     assert state is not None and state.branch == "escalate"
     assert state.original_message == "redesign my homepage"
@@ -304,7 +300,7 @@ def test_escalation_yes_logs_request_to_store(tmp_path):
     assert handle(router, "add a new page").branch == "escalate"
     outcome = handle(router, "yes please")
     assert outcome.branch == "escalate"
-    assert outcome.reply_text == ESCALATION_CONFIRM_REPLY
+    assert outcome.reply_text == translate("escalation_confirm")
     assert outcome.reason == "escalation_logged"
 
     rows = store.list_escalation_requests(db)
@@ -324,7 +320,7 @@ def test_escalation_no_clears_state_without_logging(tmp_path):
     handle(router, "add a new page")
     outcome = handle(router, "no thanks")
     assert outcome.branch == "escalate"
-    assert outcome.reply_text == ESCALATION_DECLINE_REPLY
+    assert outcome.reply_text == translate("escalation_decline")
     assert store.count_escalation_requests(db) == 0
     assert router.sessions.get(OWNER) is None
 
@@ -337,7 +333,7 @@ def test_escalation_non_answer_repeats_the_offer(tmp_path):
     handle(router, "add a new page")
     outcome = handle(router, "what would it cost?")
     assert outcome.branch == "escalate"
-    assert outcome.reply_text == ESCALATION_REPLY_TEXT  # still awaiting yes/no
+    assert outcome.reply_text == translate("escalation_reply")  # still awaiting yes/no
     assert outcome.reason == "escalation_pending"
     assert store.count_escalation_requests(db) == 0
 

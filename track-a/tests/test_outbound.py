@@ -13,12 +13,11 @@ import asyncio
 
 from shared_contract import CONTRACT_VERSION
 from track_a.composer import (
-    CANCEL_REPLY_TEXT,
-    GENERIC_ERROR_REPLY_TEXT,
     compose_completion,
     compose_confirmation,
     compose_error,
 )
+from track_a.i18n import translate
 from track_a.intent import IntentParseResult
 from track_a.routing import IntentRouter
 from track_a.session import SessionStore
@@ -176,7 +175,7 @@ def test_cancel_after_failed_clears_pending_without_retry():
     assert router.sessions.get(OWNER).pending_intent == intent
     outcome = handle(router, "no")
     assert outcome.reason == "cancelled"
-    assert sender.last_text == CANCEL_REPLY_TEXT
+    assert sender.last_text == translate("cancel_reply")
     # Stage + failed YES + discard-NO relayed; the NO never publishes.
     assert trackb.calls == [(intent, None), (intent, "yes"), (intent, "no")]
     assert router.sessions.get(OWNER) is None
@@ -193,7 +192,7 @@ def test_yes_failed_without_message_uses_generic_error():
     )
     outcome = handle(router, "yes")
     assert outcome.reason == "publish_failed"
-    assert sender.last_text == GENERIC_ERROR_REPLY_TEXT
+    assert sender.last_text == translate("generic_error")
 
 
 def test_yes_needs_confirmation_resends_prompt_defensively():
@@ -244,7 +243,7 @@ def test_stage_contract_violation_sends_generic_error():
     )
     outcome = handle(router, "post the job")
     assert outcome.reason == "stage_failed"
-    assert sender.last_text == GENERIC_ERROR_REPLY_TEXT
+    assert sender.last_text == translate("generic_error")
     assert "Done!" not in sender.last_text
     # Nothing held for confirmation.
     assert router.sessions.get(OWNER) is None
@@ -270,13 +269,12 @@ def test_trackb_contract_violation_on_yes_sends_generic_error():
     )
     outcome = handle(router, "yes")
     assert outcome.reason == "submit_error"
-    assert sender.last_text == GENERIC_ERROR_REPLY_TEXT
+    assert sender.last_text == translate("generic_error")
     assert "Done!" not in sender.last_text
     assert router.sessions.get(OWNER).pending_intent == intent
 
 
 # ------------------------------------------------------------------- NO
-
 
 def test_no_cancels_and_relays_discard_never_publishes():
     intent = make_intent()
@@ -291,7 +289,7 @@ def test_no_cancels_and_relays_discard_never_publishes():
 
     outcome = handle(router, "no")
     assert outcome.reason == "cancelled"
-    assert sender.last_text == CANCEL_REPLY_TEXT
+    assert sender.last_text == translate("cancel_reply")
     # Staged, then the NO was relayed as a discard — never a publish.
     assert trackb.calls == [(intent, None), (intent, "no")]
     assert router.sessions.get(OWNER) is None  # pending intent discarded

@@ -25,9 +25,12 @@ Against the real Track B API (B6):
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger("track_a.trackb")
 
 from shared_contract import (
     ContractValidationError,
@@ -77,14 +80,20 @@ class TrackBClient:
             raise TrackBError(f"Track B returned a result that fails the contract: {exc}") from exc
         return result
 
-    async def undo(self, owner_id: str) -> dict[str, Any]:
+    async def undo(self, owner_id: str, *, site_id: str | None = None) -> dict[str, Any]:
         """Ask Track B to reverse the owner's most recent change (B4).
+
+        When *site_id* is given, the undo is scoped to that site so only
+        changes for the active site are considered.
 
         Same boundary discipline as submit_intent: the result is validated
         against the contract before it is trusted.
         """
+        payload: dict[str, Any] = {"owner_id": owner_id}
+        if site_id is not None:
+            payload["site_id"] = site_id
         resp = await self._client.post(
-            f"{self.base_url}/undo", json={"owner_id": owner_id}, timeout=30.0
+            f"{self.base_url}/undo", json=payload, timeout=30.0
         )
         if resp.status_code not in (200, 422):
             resp.raise_for_status()
@@ -95,6 +104,31 @@ class TrackBClient:
         except ContractValidationError as exc:
             raise TrackBError(f"Track B returned a result that fails the contract: {exc}") from exc
         return result
+
+    async def set_active_site(self, site_id: str, owner_id: str) -> bool:
+        """Mark a site as the owner's active site (multi-site support)."""
+        try:
+            resp = await self._client.post(
+                f"{self.base_url}/sites/{site_id}/active",
+                params={"owner_id": owner_id},
+                timeout=10.0,
+            )
+            return resp.status_code == 200
+        except Exception as exc:
+            logger.warning("set_active_site failed for %s: %s", site_id, exc)
+            return False
+
+    async def list_sites(self, owner_id: str) -> list[dict[str, str]]:
+        """List all sites onboarded for this owner (multi-site support)."""
+        resp = await self._client.get(
+            f"{self.base_url}/sites/list",
+            params={"owner_id": owner_id},
+            timeout=15.0,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("sites", [])
+        logger.warning("list_sites failed for owner %s: HTTP %d", owner_id, resp.status_code)
+        return []
 
     async def onboard_site(
         self,

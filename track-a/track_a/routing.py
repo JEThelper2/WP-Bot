@@ -26,16 +26,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from .composer import (
-    CANCEL_REPLY_TEXT,
     compose_completion,
     compose_confirmation,
     compose_error,
     compose_undo_done,
     compose_undo_error,
 )
+from .i18n import translate
 from .intent import IntentParser, IntentParseResult
 from .reply import ReplySender
-from .session import SessionState, SessionStore
+from .retry import retry_with_backoff
+from .session import ActiveSiteStore, SessionState, SessionStore
 from .trackb import TrackBClient, TrackBError
 
 logger = logging.getLogger("track_a.routing")
@@ -49,37 +50,28 @@ CONFIDENCE_THRESHOLD = 0.75
 CLARIFICATION_MAX_TURNS = 3
 
 # ---------------------------------------------------------------------------
-# Reply texts
+# Reply texts — resolved at call time via translate() for i18n support.
 # ---------------------------------------------------------------------------
 
-ESCALATION_REPLY_TEXT = (
-    "That's outside what I can currently handle automatically — things like "
-    "job postings, announcements, and your business info (hours, contact, "
-    "address, prices). For anything else, I can connect you with a developer "
-    "to make the change for a small fee. Want me to do that?"
-)
 
-ESCALATION_CONFIRM_REPLY = (
-    "Done — I've logged your request and someone will reach out about it. "
-    "Anything else I can help with?"
-)
+def _escalation_reply() -> str:
+    return translate("escalation_reply")
 
-ESCALATION_DECLINE_REPLY = "No problem! If you change your mind, just ask. Anything else I can do?"
 
-# No intent at all (parse failed / empty): still targeted — names what the
-# bot CAN do rather than a bare "I didn't understand".
-NO_INTENT_QUESTION = (
-    "Sorry — I couldn't quite understand your request. You can ask me to "
-    "post a job, add an announcement, or update your business info like "
-    "hours, contact, address, or prices. Could you rephrase it?"
-)
+def _escalation_confirm() -> str:
+    return translate("escalation_confirm")
 
-# After CLARIFICATION_MAX_TURNS of unresolved back-and-forth.
-STILL_UNSURE_REPLY_TEXT = (
-    "I'm having trouble understanding what you'd like to change. Could you "
-    'text me the request in one message, for example: "post a job for a '
-    'part-time barista" or "change my hours to 9-6"?'
-)
+
+def _escalation_decline() -> str:
+    return translate("escalation_decline")
+
+
+def _no_intent_question() -> str:
+    return translate("no_intent_question")
+
+
+def _still_unsure() -> str:
+    return translate("still_unsure")
 
 # ---------------------------------------------------------------------------
 # Required-field knowledge (mirrors shared-contract/intent.schema.json)
@@ -98,20 +90,21 @@ _REQUIRED_ON_CREATE_FALLBACK: dict[str, tuple[str, ...]] = {
     "image": ("slot",),
 }
 
-FIELD_QUESTIONS_FALLBACK: dict[str, str] = {
-    "job.title": "What's the job title?",
-    "job.description": "Can you describe the job?",
-    "job.location": "Where is the job located?",
-    "job.remote": "Is the role remote, on-site, or hybrid?",
-    "job.category": "What category is the job?",
-    "announcement.title": "What should the announcement be titled?",
-    "announcement.body": "What should the announcement say?",
-    "image.slot": "Where should the image go — homepage banner, logo, or gallery?",
-    "image.media_url": "Please send the image you'd like to use.",
-    "business_info.phone": "What phone number should I update to?",
-    "business_info.hours": "What are the new opening hours?",
-    "business_info.address": "What's the address?",
-    "business_info.prices": "What are the new prices?",
+# Field question translation keys, keyed by "content_type.field".
+_FIELD_QUESTION_KEYS: dict[str, str] = {
+    "job.title": "field_job_title",
+    "job.description": "field_job_description",
+    "job.location": "field_job_location",
+    "job.remote": "field_job_remote",
+    "job.category": "field_job_category",
+    "announcement.title": "field_announcement_title",
+    "announcement.body": "field_announcement_body",
+    "image.slot": "field_image_slot",
+    "image.media_url": "field_image_media_url",
+    "business_info.phone": "field_business_info_phone",
+    "business_info.hours": "field_business_info_hours",
+    "business_info.address": "field_business_info_address",
+    "business_info.prices": "field_business_info_prices",
 }
 
 
@@ -150,11 +143,11 @@ def missing_required_fields(intent: dict[str, Any]) -> list[str]:
 def targeted_question(content_type: str | None, field: str | None) -> str:
     """One targeted clarifying question for the gap, never a generic one."""
     if content_type and field:
-        question = FIELD_QUESTIONS_FALLBACK.get(f"{content_type}.{field}")
-        if question:
-            return question
-        return f"Could you tell me the {field}?"
-    return NO_INTENT_QUESTION
+        key = _FIELD_QUESTION_KEYS.get(f"{content_type}.{field}")
+        if key:
+            return translate(key)
+        return translate("field_generic", field=field)
+    return _no_intent_question()
 
 
 def _is_yes(text: str) -> bool:
@@ -228,11 +221,12 @@ def _is_undo(text: str) -> bool:
 
 @dataclass
 class RouteOutcome:
-    branch: str  # "confirm" | "clarify" | "escalate"
+    branch: str  # "confirm" | "clarify" | "escalate" | "onboarding"
     reply_text: str | None = None
     intent: dict[str, Any] | None = None  # confirmation-ready intent (A5)
     asked_field: str | None = None
     reason: str = ""
+    site_id: str | None = None  # active site id (set by onboarding/switch)
 
 
 def _intent_summary(intent: dict[str, Any]) -> str:
@@ -261,10 +255,7 @@ def _intent_summary(intent: dict[str, Any]) -> str:
 
 def _confirmation_question(intent: dict[str, Any]) -> str:
     """Targeted question when confidence is low but fields are complete."""
-    return (
-        f"Just to double-check — did you mean: {_intent_summary(intent)}? "
-        "Reply 'yes' or tell me what to change."
-    )
+    return translate("confirm_low_confidence", summary=_intent_summary(intent))
 
 
 class IntentRouter:
@@ -293,6 +284,7 @@ class IntentRouter:
         sender: Any = None,
         trackb: TrackBClient | Any = None,
         onboarding: Any = None,
+        active_sites: ActiveSiteStore | None = None,
     ) -> None:
         self.parser = parser or IntentParser()
         self.sessions = sessions or SessionStore()
@@ -300,6 +292,8 @@ class IntentRouter:
         self.log_escalation = log_escalation or (lambda owner, msg: None)
         self.sender = sender or ReplySender()
         self.trackb = trackb or TrackBClient(base_url="http://127.0.0.1:8200")
+        # Persistent per-owner active site tracker (survives session clears).
+        self.active_sites = active_sites or ActiveSiteStore()
         # PRD §12: the owner-facing onboarding conversation (or None to
         # disable). Onboarding messages are intercepted BEFORE intent
         # parsing so a URL or application password is never parsed as a
@@ -313,19 +307,33 @@ class IntentRouter:
 
         # --- onboarding (PRD §12): an active walkthrough always wins, and
         # a fresh trigger starts one — but never hijack a message while a
-        # confirmation/escalation decision is pending. ---
+        # confirmation/escalation decision is pending.
+        # Site-switch commands are also routed through onboarding even when
+        # the owner is mid-flow (they interrupt onboarding but not
+        # confirmation/escalation). ---
         if self.onboarding is not None and (
             self.onboarding.is_active(owner_id)
+            or self.onboarding.is_switch_site_trigger(message_text)
             or (state is None and self.onboarding.is_trigger(message_text))
         ):
             outcome = await self.onboarding.handle(owner_id, message_text)
             if outcome is not None:
+                # Capture site_id from onboarding/switch into the session
+                # and the persistent active-site tracker.
+                if outcome.site_id is not None:
+                    self.active_sites.set(owner_id, outcome.site_id)
+                    if state is None:
+                        state = SessionState(site_id=outcome.site_id)
+                    else:
+                        state.site_id = outcome.site_id
+                    self.sessions.set(owner_id, state)
                 return await self._send(owner_id, outcome)
 
         # --- UNDO command (promised in the completion message). Only when
         # no confirmation/escalation decision is pending. ---
         if state is None and _is_undo(message_text):
-            outcome = await self._handle_undo(owner_id)
+            active_site = self.active_sites.get(owner_id)
+            outcome = await self._handle_undo(owner_id, site_id=active_site)
             return await self._send(owner_id, outcome)
 
         # --- mid-conversation: awaiting a YES/NO on an offer or publish ---
@@ -368,8 +376,11 @@ class IntentRouter:
         intent = state.pending_intent
         if intent is None:
             self.sessions.clear(owner_id)
-            reply = "Sorry, something went wrong with that request — please send it again."
-            return RouteOutcome(branch="confirm", reply_text=reply, reason="no_pending_intent")
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=translate("confirm_no_pending_intent"),
+                reason="no_pending_intent",
+            )
 
         if _is_no(message_text):
             # NO cancels: tell Track B to discard the staged pending, then
@@ -379,7 +390,7 @@ class IntentRouter:
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="confirm",
-                reply_text=CANCEL_REPLY_TEXT,
+                reply_text=translate("cancel_reply"),
                 reason="cancelled",
             )
 
@@ -403,7 +414,13 @@ class IntentRouter:
         intent = outcome.intent
         assert intent is not None
         try:
-            result = await self.trackb.submit_intent(intent)  # decision=None
+            result = await retry_with_backoff(
+                lambda: self.trackb.submit_intent(intent),
+                max_attempts=3,
+                base_delay=0.5,
+                max_delay=3.0,
+                operation_name=f"stage_pending(owner={owner_id})",
+            )
         except Exception as exc:  # transport or contract violation
             logger.warning("staging failed for owner %s: %s", owner_id, exc)
             self.sessions.clear(owner_id)
@@ -442,16 +459,28 @@ class IntentRouter:
     async def _discard_pending(self, owner_id: str, intent: dict[str, Any]) -> None:
         """Relay the NO to Track B so the staged pending is discarded."""
         try:
-            await self.trackb.submit_intent(intent, decision="no")
+            await retry_with_backoff(
+                lambda: self.trackb.submit_intent(intent, decision="no"),
+                max_attempts=2,
+                base_delay=0.5,
+                max_delay=2.0,
+                operation_name=f"discard_pending(owner={owner_id})",
+            )
         except Exception as exc:
             # The owner's intent is cleared locally regardless; Track B's
             # TTL expires the stale pending.
             logger.warning("discard of pending intent failed for owner %s: %s", owner_id, exc)
 
-    async def _handle_undo(self, owner_id: str) -> RouteOutcome:
+    async def _handle_undo(self, owner_id: str, *, site_id: str | None = None) -> RouteOutcome:
         """Reply UNDO: reverse the owner's most recent change via Track B."""
         try:
-            result = await self.trackb.undo(owner_id)
+            result = await retry_with_backoff(
+                lambda: self.trackb.undo(owner_id, site_id=site_id),
+                max_attempts=3,
+                base_delay=0.5,
+                max_delay=3.0,
+                operation_name=f"undo(owner={owner_id})",
+            )
         except Exception as exc:
             logger.warning("undo call failed for owner %s: %s", owner_id, exc)
             return RouteOutcome(
@@ -474,7 +503,13 @@ class IntentRouter:
     async def _submit_pending(self, owner_id: str, intent: dict[str, Any]) -> RouteOutcome:
         """YES: resolve the staged confirmation and reply per the result."""
         try:
-            result = await self.trackb.submit_intent(intent, decision="yes")
+            result = await retry_with_backoff(
+                lambda: self.trackb.submit_intent(intent, decision="yes"),
+                max_attempts=3,
+                base_delay=0.5,
+                max_delay=3.0,
+                operation_name=f"submit_pending(owner={owner_id})",
+            )
         except TrackBError as exc:
             logger.warning("Track B contract violation for owner %s: %s", owner_id, exc)
             return RouteOutcome(
@@ -538,11 +573,12 @@ class IntentRouter:
                     branch="escalate",
                     original_message=original_message,
                     exchange=_exchange(prior, original_message),
+                    site_id=prior.site_id if prior else None,
                 ),
             )
             return RouteOutcome(
                 branch="escalate",
-                reply_text=ESCALATION_REPLY_TEXT,
+                reply_text=_escalation_reply(),
                 reason="unsupported",
             )
 
@@ -557,11 +593,20 @@ class IntentRouter:
             )
 
         intent = parse.intent
+        # Inject the active site_id from the session so Track B resolves
+        # the correct site for multi-site owners.
+        if prior is not None and prior.site_id is not None:
+            intent["site_id"] = prior.site_id
+            # Ensure the active site tracker stays current.
+            self.active_sites.set(owner_id, prior.site_id)
         missing = missing_required_fields(intent)
         if parse.confidence >= self.threshold and not missing:
             # Confirmation-ready: hold the intent and send the confirmation
             # prompt (A5) — the owner's YES/NO decides what happens next.
-            self.sessions.set(owner_id, SessionState(branch="confirm", pending_intent=intent))
+            self.sessions.set(
+                owner_id,
+                SessionState(branch="confirm", pending_intent=intent, site_id=prior.site_id if prior else None),
+            )
             return RouteOutcome(
                 branch="confirm",
                 intent=intent,
@@ -602,7 +647,7 @@ class IntentRouter:
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="clarify",
-                reply_text=STILL_UNSURE_REPLY_TEXT,
+                reply_text=_still_unsure(),
                 reason="max_turns",
             )
 
@@ -616,7 +661,7 @@ class IntentRouter:
         elif intent is not None:
             question = _confirmation_question(intent)
         else:
-            question = NO_INTENT_QUESTION
+            question = _no_intent_question()
         exchange.append({"role": "assistant", "text": question})
 
         self.sessions.set(
@@ -627,6 +672,7 @@ class IntentRouter:
                 asked_field=asked_field,
                 turns=turns,
                 exchange=exchange,
+                site_id=prior.site_id if prior else None,
             ),
         )
         return RouteOutcome(
@@ -646,20 +692,20 @@ class IntentRouter:
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="escalate",
-                reply_text=ESCALATION_CONFIRM_REPLY,
+                reply_text=_escalation_confirm(),
                 reason="escalation_logged",
             )
         if _is_no(message_text):
             self.sessions.clear(owner_id)
             return RouteOutcome(
                 branch="escalate",
-                reply_text=ESCALATION_DECLINE_REPLY,
+                reply_text=_escalation_decline(),
                 reason="escalation_declined",
             )
         # Anything else: still waiting for a clear yes/no.
         return RouteOutcome(
             branch="escalate",
-            reply_text=ESCALATION_REPLY_TEXT,
+            reply_text=_escalation_reply(),
             reason="escalation_pending",
         )
 

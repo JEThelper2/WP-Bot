@@ -1,4 +1,4 @@
-"""Inbound message pipeline (voice-note milestone).
+"""Inbound message pipeline.
 
 Turns raw inbound messages into a single, channel-agnostic
 `message_text` that the next step (intent parsing) can consume without
@@ -6,14 +6,14 @@ caring whether the owner typed or spoke:
 
 - text messages  -> message_text = the raw body
 - voice notes    -> download -> transcribe -> message_text = transcript
+- images         -> download -> store media content for image handler
 - anything else  -> unsupported, no message_text
 
 **Fallback rule:** if a voice note's transcript is empty/garbled, the
 transcription confidence is below the threshold, or Whisper detected no
 speech, the message does NOT get a message_text (so intent parsing will
 skip it) and a reply is prepared asking the owner to resend as text or
-try again. The send mechanism itself is stubbed (`reply.ReplySender`);
-A5 wires the real Graph API send.
+try again.
 
 The pipeline is synchronous within the webhook request for now; when
 transcription gets slow in production this should move to a queue/worker.
@@ -21,8 +21,9 @@ transcription gets slow in production this should move to a queue/worker.
 
 from __future__ import annotations
 
+import base64
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -33,16 +34,18 @@ from .transcribe import Transcriber
 
 logger = logging.getLogger("track_a.pipeline")
 
-# Content types that never produce message_text (image/video/etc.).
-# Only "audio" (voice notes) is transcribed.
+# Content types that need special processing.
 _TRANSCRIBED_TYPE = "audio"
+_IMAGE_TYPE = "image"
 
 
 @dataclass
 class ProcessingOutcome:
-    status: str  # text | transcribed | low_confidence | failed | unsupported
+    status: str  # text | transcribed | low_confidence | failed | unsupported | image
     message_text: str | None = None
     reply_text: str | None = None
+    media_payload: MediaPayload | None = None  # downloaded image/voice bytes
+    media_base64: str | None = None  # base64-encoded media for image handler
 
 
 class MessageProcessor:
@@ -74,8 +77,10 @@ class MessageProcessor:
             )
         elif message_type == _TRANSCRIBED_TYPE:
             outcome = await self._process_voice(row)
+        elif message_type == _IMAGE_TYPE:
+            outcome = await self._process_image(row)
         else:
-            # image/video/sticker/document/unknown: logged but not parseable
+            # video/sticker/document/unknown: logged but not parseable
             outcome = ProcessingOutcome(status="unsupported")
 
         update_processing(
@@ -122,3 +127,25 @@ class MessageProcessor:
             return ProcessingOutcome(status="low_confidence", reply_text=FALLBACK_REPLY_TEXT)
 
         return ProcessingOutcome(status="transcribed", message_text=text)
+
+    async def _process_image(self, row: dict) -> ProcessingOutcome:
+        """Download an image and store its content for the image handler."""
+        media_ref = row.get("media_ref")
+        if not media_ref:
+            return ProcessingOutcome(status="unsupported")
+        try:
+            payload: MediaPayload = await self.media_client.download_media(media_ref)
+            media_b64 = base64.b64encode(payload.content).decode("ascii")
+            return ProcessingOutcome(
+                status="image",
+                media_payload=payload,
+                media_base64=media_b64,
+            )
+        except Exception as exc:
+            logger.warning(
+                "image download failed for message %s (%s): %s",
+                row["id"],
+                media_ref,
+                exc,
+            )
+            return ProcessingOutcome(status="failed")

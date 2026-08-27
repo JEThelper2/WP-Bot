@@ -6,13 +6,12 @@ deliberate and reviewed.
 
 from shared_contract import CONTRACT_VERSION
 from track_a.composer import (
-    CANCEL_REPLY_TEXT,
-    GENERIC_ERROR_REPLY_TEXT,
     compose_cancelled,
     compose_completion,
     compose_confirmation,
     compose_error,
 )
+from track_a.i18n import translate
 
 OWNER = "15551234567"
 
@@ -193,10 +192,9 @@ def test_error_with_message_uses_it():
 
 
 def test_error_without_message_uses_generic():
-    assert compose_error(None) == GENERIC_ERROR_REPLY_TEXT
-    assert compose_error("") == GENERIC_ERROR_REPLY_TEXT
+    assert compose_error(None) == translate("generic_error")
+    assert compose_error("") == translate("generic_error")
 
 
 def test_cancel_text():
-    assert compose_cancelled() == CANCEL_REPLY_TEXT
-    assert CANCEL_REPLY_TEXT == "Okay, cancelled — nothing was changed."
+    assert compose_cancelled() == translate("cancel_reply")
