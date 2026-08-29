@@ -7,7 +7,7 @@
 - Phase 3 (Conversational state machine): **DONE** — four-state machine (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING) per §3. Non-destructive actions skip confirmation (§3.1); destructive actions go through AWAITING_CONFIRMATION. Template-based clarification (§3.4), exact confirmation word sets (§3.3), re-ask logic, undo matching (§3.5), context_history with timestamps for LLM re-entry (§3.2). 29+ tests. Total: 405 passing, 11 skipped. Commits: 4d533a8, 447e3c4.
 - Phase 4 (Voice pipeline): **DONE** — §4.1 echo-back flow: always echo transcript, low-confidence caveat, affirmative/other reply handling. VOICE_AWAITING_ECHO state, proxy confidence, language_detected. 18 new tests. Total: 423 passing, 11 skipped. Commit: 4e764c3.
 - Phase 5 (WhatsApp migration): **DONE** — audit confirmed WhatsApp is primary channel. Reply sender error handling, e2e WhatsApp flow tests, reliability verified with WhatsApp payloads. 10 new tests. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
-- Phase 6 (Infrastructure): NOT STARTED
+- Phase 6 (Infrastructure): **DONE** — Dockerfile, railway.json, Fernet secrets encryption, pre-commit key check, Telegram operator alerting, fallback frequency tracker. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
 - Phase 7 (Onboarding): NOT STARTED
 - Phase 8 (Owner-facing features): NOT STARTED
 
@@ -124,14 +124,15 @@
 
 ### Test results
 ```
-433 passed, 11 skipped in 46.20s
+450 passed, 11 skipped in 45.43s
 ```
 - 314 original tests: all passing (unchanged)
 - 33 Phase 1 tests: all passing (unchanged)
 - 32 Phase 2 tests: all passing (unchanged)
 - 29 Phase 3 tests: all passing
 - 18 Phase 4 tests: all passing
-- 10 Phase 5 tests: all passing (new)
+- 10 Phase 5 tests: all passing
+- 17 Phase 6 tests: all passing (new)
 - Updated integration tests: 5 passing
 - 4 pre-existing skipped (wp_fake import, Redis TTL timing)
 

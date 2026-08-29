@@ -9,12 +9,12 @@ Last updated: 2026-08-29
 - Phase 3 (Conversational state machine): DONE
 - Phase 4 (Voice pipeline): DONE
 - Phase 5 (WhatsApp migration): DONE
-- Phase 6 (Infrastructure): NOT STARTED
+- Phase 6 (Infrastructure): DONE
 - Phase 7 (Onboarding): NOT STARTED
 - Phase 8 (Owner-facing features): NOT STARTED
 
 ## Currently in progress
-Phase 5 complete. Ready for Phase 6 (Infrastructure: §7 Railway deployment, secrets encryption, structured logging, alerting).
+Phase 6 complete. Ready for Phase 7 (Onboarding: §8 runbook execution on a fresh test site).
 
 ## Phase 3 audit — §3 compliance checklist
 
@@ -82,6 +82,7 @@ Phase 5 complete. Ready for Phase 6 (Infrastructure: §7 Railway deployment, sec
 - [2026-08-29] Phase 3: Conversational state machine per §3. Four states (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING). Replaced escalate with unclear → AWAITING_CLARIFICATION (§3.4 templates). Tightened _is_yes/_is_no to exact spec word sets (§3.3). Added re-ask logic: first ambiguous reply re-asks, second cancels (§3.3). Added _is_undo matching per §3.5. Updated context_history (§3.2) for LLM re-entry with ISO timestamps. Added confirmation_reask/confirmation_cancelled locale keys. Fixed IntentRouter.__init__ falsy SessionStore bug. Spec compliance fix: non-destructive actions (create, non-business_info update) skip confirmation and execute immediately; only destructive actions (delete, business_info update) go through AWAITING_CONFIRMATION. 29+ integration tests updated. Total: 405 passing, 11 skipped. Commits: 4d533a8, 447e3c4.
 - [2026-08-29] Phase 4: Voice pipeline per §4. §4.1 step 3: always echo transcript back (hard rule, not conditional on confidence). §4.1 step 4: low-confidence (< 0.5) prepends caveat. §4.1 step 5: affirmative → use transcript; other → treat as corrected text. VOICE_AWAITING_ECHO state added to session. source="voice" on handle_message triggers echo flow. Proxy confidence calculation (word_count / (duration * 2)). language_detected field on Transcription. GroqTranscriber populates language. Webhook handler passes source="voice" for audio messages. 18 new tests. Total: 423 passing, 11 skipped. Commit: 4e764c3.
 - [2026-08-29] Phase 5: WhatsApp migration audit and verification. Confirmed WhatsApp is primary channel (webhook, reply sender, media client, voice pipeline all implemented). WhatsAppReplySender now handles HTTP errors gracefully. Added reply sender error tests (429, connection error). Added end-to-end WhatsApp flow tests (webhook → pipeline → router → reply). Reliability tests verified with WhatsApp payloads (duplicate detection, rate limiting). Multi-tenant tests verified with WhatsApp sender_id resolution. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
+- [2026-08-29] Phase 6: Infrastructure per §7. Dockerfile for Railway (Python 3.12-slim). railway.json with health check. Fernet-based secrets encryption for WordPress Application Passwords (§7.2). Tenant store encrypts on write, decrypts at API call point. Pre-commit check for leaked API key patterns (sk-, AIza, ghp_, AKIA). TelegramAlertSender for operator notifications (§7.4). FallbackFrequencyTracker for AI provider monitoring. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
 
 ## Decisions resolved (from Phase 0 audit — 2026-08-29)
 1. **Content architecture (§13)**: Build against standard posts + categories (what exists in sandbox). Content-storage layer is swappable — no ACF dependency.
