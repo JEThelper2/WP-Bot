@@ -137,10 +137,13 @@ def create_app(
             **provider_kwargs,
         )
         parser = IntentParser(llm=llm)
+        from .session import DBSessionStore
+
         router = IntentRouter(
             parser=parser,
             sender=sender,
             trackb=trackb,
+            sessions=DBSessionStore(settings.db_path),
             onboarding=OnboardingFlow(trackb=trackb, db_path=settings.db_path),
             log_escalation=lambda owner, msg: log_escalation_request(settings.db_path, owner, msg),
             reliability=reliability,
@@ -205,6 +208,7 @@ def create_app(
                 parser=router.parser,
                 sender=sender,
                 trackb=router.trackb,
+                sessions=router.sessions,
                 onboarding=router.onboarding,
                 log_escalation=router.log_escalation,
                 active_sites=router.active_sites,
