@@ -11,10 +11,10 @@ Last updated: 2026-08-29
 - Phase 5 (WhatsApp migration): DONE
 - Phase 6 (Infrastructure): DONE
 - Phase 7 (Onboarding): DONE
-- Phase 8 (Owner-facing features): NOT STARTED
+- Phase 8 (Owner-facing features): DONE
 
 ## Currently in progress
-Phase 7 complete. Ready for Phase 8 (Owner-facing features: §10 recap command, §10 draft/preview for high-impact edits).
+Phase 8 complete. All 8 phases implemented. Ready for final audit per §11.
 
 ## Phase 3 audit — §3 compliance checklist
 
@@ -84,6 +84,7 @@ Phase 7 complete. Ready for Phase 8 (Owner-facing features: §10 recap command, 
 - [2026-08-29] Phase 5: WhatsApp migration audit and verification. Confirmed WhatsApp is primary channel (webhook, reply sender, media client, voice pipeline all implemented). WhatsAppReplySender now handles HTTP errors gracefully. Added reply sender error tests (429, connection error). Added end-to-end WhatsApp flow tests (webhook → pipeline → router → reply). Reliability tests verified with WhatsApp payloads (duplicate detection, rate limiting). Multi-tenant tests verified with WhatsApp sender_id resolution. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
 - [2026-08-29] Phase 6: Infrastructure per §7. Dockerfile for Railway (Python 3.12-slim). railway.json with health check. Fernet-based secrets encryption for WordPress Application Passwords (§7.2). Tenant store encrypts on write, decrypts at API call point. Pre-commit check for leaked API key patterns (sk-, AIza, ghp_, AKIA). TelegramAlertSender for operator notifications (§7.4). FallbackFrequencyTracker for AI provider monitoring. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
 - [2026-08-29] Phase 7: Onboarding per §8. Wired tenant_store into OnboardingFlow for §8 step 6-8 (create tenant, flip to active, set onboarded_at). Added root conftest.py for cross-track test imports. Fixed undo check to work in IDLE session state (not just state is None). Added 9 onboarding smoke tests covering full runbook flow, cancel, invalid URL, wrong password, insufficient permissions, post-onboarding text/undo/failure, and multi-tenant isolation. Fixed end-to-end outbound test (pre-seeded WordPress post for delete). Total: 461 passing, 11 skipped. Commit: 204aae9.
+- [2026-08-29] Phase 8: Owner-facing features per §10. §10 Recap command: _is_recap() matching {recap, history, recent changes, what have i changed, what have i done, show my changes}. _handle_recap() queries Track B /changes endpoint, formats numbered list with relative timestamps. Added /changes endpoint to Track B, list_changes() to TrackBClient. §10 Draft/preview: compose_confirmation_with_diff() shows before/after diff for business_info_update. _stage_pending() passes before/after from Track B staging result. Locale keys: recap_header, recap_entry, recap_empty, recap_undo_entry, compose_business_info_update_with_before. 27 new tests. Total: 488 passing, 11 skipped. Commit: 8075aff.
 
 ## Decisions resolved (from Phase 0 audit — 2026-08-29)
 1. **Content architecture (§13)**: Build against standard posts + categories (what exists in sandbox). Content-storage layer is swappable — no ACF dependency.

@@ -9,7 +9,7 @@
 - Phase 5 (WhatsApp migration): **DONE** — audit confirmed WhatsApp is primary channel. Reply sender error handling, e2e WhatsApp flow tests, reliability verified with WhatsApp payloads. 10 new tests. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
 - Phase 6 (Infrastructure): **DONE** — Dockerfile, railway.json, Fernet secrets encryption, pre-commit key check, Telegram operator alerting, fallback frequency tracker. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
 - Phase 7 (Onboarding): **DONE** — wired tenant_store into OnboardingFlow for §8 step 6-8 (create tenant record, flip to active, set onboarded_at). Fixed undo to work in IDLE session state (not just state is None). Added root conftest.py for cross-track test imports. 9 new onboarding smoke tests (full runbook, cancel, error paths, post-onboarding operations, multi-tenant isolation). Fixed end-to-end outbound test. Total: 461 passing, 11 skipped. Commit: 204aae9.
-- Phase 8 (Owner-facing features): NOT STARTED
+- Phase 8 (Owner-facing features): **DONE** — §10 Recap command: _is_recap() matching {recap, history, recent changes, what have i changed, what have i done, show my changes}. _handle_recap() queries Track B /changes endpoint, formats numbered list with relative timestamps (just now, X minutes ago, X hours ago, X days ago). Added /changes endpoint to Track B API, list_changes() to TrackBClient. §10 Draft/preview: compose_confirmation_with_diff() shows before/after diff for business_info_update ("Change your phone from 0801... to 0802..."). _stage_pending() passes before/after from Track B staging result to confirmation message. Locale keys added. 27 new tests. Total: 488 passing, 11 skipped. Commit: 8075aff.
 
 ## 2. Items that deviated from spec
 
