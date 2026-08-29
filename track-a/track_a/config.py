@@ -43,6 +43,7 @@ class Settings:
     transcription_provider: str = "groq"
     admin_token: str = ""
     telegram_bot_token: str = ""  # Telegram Bot API token for testing without WhatsApp
+    telegram_webhook_secret: str = ""  # Secret token for Telegram webhook validation
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -71,4 +72,5 @@ class Settings:
             transcription_provider=transcription_provider,
             admin_token=os.environ.get("ADMIN_TOKEN", ""),
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", ""),
+            telegram_webhook_secret=os.environ.get("TELEGRAM_WEBHOOK_SECRET", ""),
         )

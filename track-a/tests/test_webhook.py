@@ -186,7 +186,8 @@ def test_verification_handshake_rejects_wrong_mode(client: TestClient) -> None:
 def test_text_message_is_received_and_logged(client: TestClient, app) -> None:
     resp = client.post("/webhook", json=sample_text_payload())
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "received": 1, "duplicates": 0}
+    data = resp.json()
+    assert data == {"status": "ok", "received": 1, "duplicates": 0, "rate_limited": 0}
 
     rows = list_messages(db_path(app))
     assert len(rows) == 1
@@ -219,7 +220,7 @@ def test_duplicate_delivery_is_not_double_logged(client: TestClient, app) -> Non
     assert client.post("/webhook", json=payload).json()["received"] == 1
     resp = client.post("/webhook", json=payload)
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "received": 0, "duplicates": 1}
+    assert resp.json() == {"status": "ok", "received": 0, "duplicates": 1, "rate_limited": 0}
     assert count_messages(db_path(app)) == 1
 
 

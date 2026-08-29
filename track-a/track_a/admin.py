@@ -95,34 +95,6 @@ async def escalation_list(
     total_count = count_escalation_requests(db_path)
     escalations = list_escalation_requests(db_path, status=status)
 
-    # Build filter links
-    filter_links = (
-        '<a href="/admin" style="margin-right:8px;">All</a>'
-        '<a href="/admin?status=new" style="margin-right:8px;">New</a>'
-        '<a href="/admin?status=in_progress" style="margin-right:8px;">In Progress</a>'
-        '<a href="/admin?status=resolved">Resolved</a>'
-    )
-
-    # Build table rows
-    rows = ""
-    for e in escalations:
-        msg_preview = _escap((e.get("original_message") or "")[:80])
-        if len(e.get("original_message") or "") > 80:
-            msg_preview += "…"
-        rows += f"""
-        <tr>
-            <td>{e["id"]}</td>
-            <td>{_escap(e.get("owner_phone"))}</td>
-            <td>{msg_preview}</td>
-            <td>{_status_badge(e.get("status", "new"))}</td>
-            <td>{_escap(e.get("created_at", "")[:19])}</td>
-            <td><a href="/admin/{e["id"]}">View</a></td>
-        </tr>
-        """
-
-    if not rows:
-        rows = '<tr><td colspan="6" style="text-align:center;color:#888;">No escalation requests found.</td></tr>'
-
     page = _render("admin/escalation_list.html", {
         "title": "Escalation Requests",
         "active_page": "escalations",
@@ -143,11 +115,6 @@ async def escalation_detail(request: Request, escalation_id: int) -> HTMLRespons
     esc = get_escalation_request(db_path, escalation_id)
     if esc is None:
         raise HTTPException(status_code=404, detail="Escalation not found")
-
-    status_options = ""
-    for s in _VALID_STATUSES:
-        selected = "selected" if esc.get("status") == s else ""
-        status_options += f'<option value="{s}" {selected}>{s}</option>'
 
     page = _render("admin/escalation_detail.html", {
         "title": f"Escalation #{esc['id']}",

@@ -27,6 +27,7 @@ parsed or logged — forged payloads are rejected with 403.
 
 from __future__ import annotations
 
+import hmac as _hmac
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -40,7 +41,7 @@ from shared_contract.logging import setup_logging
 
 from .admin import router as admin_router
 from .ai_provider import get_provider
-from .config import Settings
+from .config import DEFAULT_VERIFY_TOKEN, Settings
 from .dashboard import router as dashboard_router
 from .intent import IntentParser
 from .media import WhatsAppMediaClient
@@ -49,6 +50,7 @@ from .onboarding import OnboardingFlow
 from .pipeline import MessageProcessor
 from .ratelimit import RateLimiter
 from .reply import ReplySender, WhatsAppReplySender
+from .reliability import ReliabilityLayer
 from .telegram import TelegramReplySender, handle_telegram_update
 from .routing import IntentRouter
 from .signature import verify_webhook_signature
@@ -62,6 +64,7 @@ from .store import (
     list_messages,
     log_escalation_request,
 )
+from .tenant_store import get_tenant_by_sender, init_tenant_db
 from .trackb import TrackBClient
 from .transcribe import get_transcription_provider
 
@@ -83,6 +86,7 @@ def create_app(
     setup_logging()
     settings = settings or Settings.from_env()
     init_db(settings.db_path)
+    init_tenant_db(settings.db_path)  # §1: multi-tenant tables
 
     # Shared httpx.AsyncClient — lifecycle managed by the FastAPI lifespan.
     shared_client = httpx.AsyncClient()
@@ -110,6 +114,14 @@ def create_app(
             sender=sender,
         )
 
+    # §6: DB-backed reliability layer (idempotency + rate limiting + circuit breaker).
+    # Created early so the router can use it for circuit breaker on Track B calls.
+    reliability = ReliabilityLayer(
+        db_path=settings.db_path,
+        max_messages=30,
+        window_hours=1,
+    )
+
     if router is None:
         trackb = TrackBClient(base_url=settings.track_b_url, client=shared_client)
         # Wire the AI provider from config (Dependency Inversion):
@@ -131,6 +143,7 @@ def create_app(
             trackb=trackb,
             onboarding=OnboardingFlow(trackb=trackb),
             log_escalation=lambda owner, msg: log_escalation_request(settings.db_path, owner, msg),
+            reliability=reliability,
         )
 
     @asynccontextmanager
@@ -154,8 +167,26 @@ def create_app(
     app.state.processor = processor
     app.state.router = router
     app.state.admin_token = settings.admin_token
+    if not settings.admin_token:
+        logger.warning(
+            "ADMIN_TOKEN is not set — admin dashboard and API are UNPROTECTED. "
+            "Set the ADMIN_TOKEN environment variable for production."
+        )
+    if settings.verify_token == DEFAULT_VERIFY_TOKEN:
+        logger.warning(
+            "WHATSAPP_VERIFY_TOKEN is using the default dev value — "
+            "set a unique token in production to prevent webhook hijacking."
+        )
+    if not settings.app_secret:
+        logger.warning(
+            "WHATSAPP_APP_SECRET is not set — webhook signature verification "
+            "is DISABLED. Set this in production to reject forged deliveries."
+        )
     # Per-owner rate limiter: 30 messages per 60s window.
     app.state.rate_limiter = RateLimiter(max_requests=30, window_seconds=60)
+
+    # §6: DB-backed reliability layer (idempotency + rate limiting + circuit breaker).
+    app.state.reliability = reliability
 
     # --- Telegram adapter (for testing without WhatsApp) -----------------------
     tg_sender: TelegramReplySender | ReplySender | None = None
@@ -178,6 +209,7 @@ def create_app(
                 log_escalation=router.log_escalation,
                 active_sites=router.active_sites,
             )
+            app.state.router = router
         app.state.tg_sender = tg_sender
         logger.info("Telegram adapter enabled (bot token configured)")
     else:
@@ -229,6 +261,15 @@ def create_app(
 
         if not settings.telegram_bot_token:
             raise HTTPException(status_code=503, detail="Telegram not configured (set TELEGRAM_BOT_TOKEN)")
+
+        # Validate the Telegram webhook secret token (set via BotFather's
+        # setWebhook secret_token parameter).  When configured, requests
+        # without a valid X-Telegram-Bot-Api-Secret-Token are rejected.
+        if settings.telegram_webhook_secret:
+            provided = request.headers.get("x-telegram-bot-api-secret-token", "")
+            if not _hmac.compare_digest(provided, settings.telegram_webhook_secret):
+                logger.warning("Telegram webhook rejected: invalid secret token")
+                raise HTTPException(status_code=403, detail="Invalid secret token")
 
         return await handle_telegram_update(
             payload,
@@ -330,6 +371,7 @@ def create_app(
                 detail=f"Unrecognized object: expected {_WABA_OBJECT!r}",
             )
 
+        reliability = app.state.reliability
         received = 0
         duplicates = 0
         rate_limited = 0
@@ -340,13 +382,42 @@ def create_app(
                 # nothing to log, and we must still answer 200.
                 for msg in value.get("messages", []):
                     owner_phone = str(msg.get("from") or "")
-                    if owner_phone and app.state.rate_limiter.is_rate_limited(owner_phone):
-                        rate_limited += 1
-                        metrics.inc("messages_rate_limited")
-                        logger.warning(
-                            "rate-limited message from owner %s", owner_phone
-                        )
-                        continue
+                    provider_msg_id = str(msg.get("id") or "")
+
+                    # §5: Resolve tenant_id from sender_id.  If no tenant
+                    # record exists, fall back to legacy single-owner mode
+                    # (the old in-memory rate limiter + wam_id uniqueness).
+                    tenant = get_tenant_by_sender(settings.db_path, owner_phone) if owner_phone else None
+                    tenant_id = tenant["id"] if tenant else None
+
+                    if tenant_id is not None:
+                        # §6.1: Idempotency — checked BEFORE any AI call.
+                        if not reliability.check_idempotency(tenant_id, provider_msg_id):
+                            duplicates += 1
+                            metrics.inc("messages_duplicate")
+                            continue
+
+                        # §6.2: Rate limiting — DB-backed per-tenant.
+                        is_limited, _count = reliability.check_rate_limit(tenant_id)
+                        if is_limited:
+                            rate_limited += 1
+                            metrics.inc("messages_rate_limited")
+                            logger.warning(
+                                "rate-limited message from tenant %s (owner %s)",
+                                tenant_id, owner_phone,
+                            )
+                            continue
+                    else:
+                        # Legacy path: no tenant record yet (pre-onboarding).
+                        # Use the in-memory rate limiter + wam_id uniqueness.
+                        if owner_phone and app.state.rate_limiter.is_rate_limited(owner_phone):
+                            rate_limited += 1
+                            metrics.inc("messages_rate_limited")
+                            logger.warning(
+                                "rate-limited message from owner %s", owner_phone
+                            )
+                            continue
+
                     row_id = _log_message(settings.db_path, msg)
                     if row_id is None:
                         duplicates += 1
@@ -450,6 +521,24 @@ def _content_json(obj: object) -> str:
 
 
 # Module-level app instance for ASGI servers (uvicorn track_a.main:app).
-# Created lazily to avoid SQLite lock conflicts when importing in tests.
+# The app is created lazily on first attribute access so that importing
+# this module (e.g. from tests) does not trigger side effects like
+# database initialization or HTTP client creation.
+_app_instance: FastAPI | None = None
+
+
 def _get_app() -> FastAPI:
-    return create_app()
+    global _app_instance  # noqa: PLW0603
+    if _app_instance is None:
+        _app_instance = create_app()
+    return _app_instance
+
+
+class _AppProxy:
+    """Lazy proxy so `uvicorn track_a.main:app` works without eager init."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_get_app(), name)
+
+
+app: FastAPI = _AppProxy()  # type: ignore[assignment]

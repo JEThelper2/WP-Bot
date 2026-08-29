@@ -64,6 +64,23 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def _connection(db_path: Path):
+    """Context manager that opens a connection, commits on success, and closes."""
+    conn = _connect(db_path)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """Add columns added after the original schema (dev-stage migration)."""
     existing = {row["name"] for row in conn.execute("PRAGMA table_info(inbound_messages)")}
@@ -84,7 +101,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 def init_db(db_path: Path) -> None:
     """Create the table (idempotent). Also creates the parent directory."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         conn.executescript(_SCHEMA)
         _migrate(conn)
 
@@ -105,7 +122,7 @@ def insert_message(
     (same wam_id already logged).
     """
     received_at = datetime.now(UTC).isoformat()
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         try:
             cur = conn.execute(
                 """
@@ -130,13 +147,13 @@ def insert_message(
 
 
 def get_message(db_path: Path, row_id: int) -> dict | None:
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         row = conn.execute("SELECT * FROM inbound_messages WHERE id = ?", (row_id,)).fetchone()
     return dict(row) if row else None
 
 
 def update_processing(db_path: Path, row_id: int, *, status: str, message_text: str | None) -> None:
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         conn.execute(
             "UPDATE inbound_messages SET processing_status = ?, message_text = ? WHERE id = ?",
             (status, message_text, row_id),
@@ -145,7 +162,7 @@ def update_processing(db_path: Path, row_id: int, *, status: str, message_text: 
 
 def list_messages(db_path: Path, limit: int = 100) -> list[dict]:
     """Return the most recent logged messages, newest first."""
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         rows = conn.execute(
             """
             SELECT * FROM inbound_messages
@@ -158,7 +175,7 @@ def list_messages(db_path: Path, limit: int = 100) -> list[dict]:
 
 
 def count_messages(db_path: Path) -> int:
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM inbound_messages").fetchone()
     return int(row["n"])
 
@@ -166,7 +183,7 @@ def count_messages(db_path: Path) -> int:
 def log_escalation_request(db_path: Path, owner_phone: str, original_message: str | None) -> int:
     """Record an escalation the owner accepted (PRD §10). Returns row id."""
     created_at = datetime.now(UTC).isoformat()
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         cur = conn.execute(
             """
             INSERT INTO escalation_requests (owner_phone, original_message, created_at)
@@ -181,7 +198,7 @@ def list_escalation_requests(
     db_path: Path, limit: int = 100, status: str | None = None
 ) -> list[dict]:
     """Escalation queue for manual review, newest first."""
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         if status:
             rows = conn.execute(
                 """
@@ -201,14 +218,14 @@ def list_escalation_requests(
 
 
 def count_escalation_requests(db_path: Path) -> int:
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM escalation_requests").fetchone()
     return int(row["n"])
 
 
 def count_open_escalations(db_path: Path) -> int:
     """Count escalations with status 'new' (neither in_progress nor resolved)."""
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         row = conn.execute(
             "SELECT COUNT(*) AS n FROM escalation_requests WHERE status = 'new'"
         ).fetchone()
@@ -217,7 +234,7 @@ def count_open_escalations(db_path: Path) -> int:
 
 def get_escalation_request(db_path: Path, row_id: int) -> dict | None:
     """Fetch a single escalation request by id."""
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         row = conn.execute("SELECT * FROM escalation_requests WHERE id = ?", (row_id,)).fetchone()
     return dict(row) if row else None
 
@@ -234,7 +251,7 @@ def update_escalation_status(
     Returns True if the row existed and was updated.
     """
     updated_at = datetime.now(UTC).isoformat()
-    with _connect(db_path) as conn:
+    with _connection(db_path) as conn:
         if notes is not None:
             cur = conn.execute(
                 "UPDATE escalation_requests SET status = ?, notes = ?, updated_at = ? WHERE id = ?",

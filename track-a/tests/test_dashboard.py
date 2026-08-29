@@ -41,6 +41,7 @@ def track_b_db(tmp_path):
             encrypted_password TEXT NOT NULL,
             allowlist_config TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'active',
+            active_site_id TEXT,
             created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS change_log (
@@ -57,7 +58,7 @@ def track_b_db(tmp_path):
     """)
     # Insert test data
     conn.execute(
-        "INSERT INTO onboarded_sites VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO onboarded_sites (site_id, owner_id, site_url, username, encrypted_password, allowlist_config, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "site-abc",
             "owner1",
@@ -70,7 +71,7 @@ def track_b_db(tmp_path):
         ),
     )
     conn.execute(
-        "INSERT INTO onboarded_sites VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO onboarded_sites (site_id, owner_id, site_url, username, encrypted_password, allowlist_config, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "site-def",
             "owner2",

@@ -182,10 +182,14 @@ def create_app(
     )
     app.state.settings = settings
     app.state.services = services
+    app.state._services_lock = __import__("asyncio").Lock()
 
     async def get_services() -> TrackBServices:
         if app.state.services is None:
-            app.state.services = await build_default_services(settings)
+            async with app.state._services_lock:
+                # Double-check after acquiring the lock.
+                if app.state.services is None:
+                    app.state.services = await build_default_services(settings)
         return app.state.services
 
     @app.get("/health")
@@ -322,9 +326,19 @@ def create_app(
         # released (YES): B2 -> B1 -> B4, using the staged change_id so the
         # audit trail links the confirmation to the write.
         assert outcome.intent is not None
-        return await _apply_with_services(
+        result = await _apply_with_services(
             outcome.intent, owner_id, services, change_id=outcome.change_id
         )
+        # If the write failed, re-stage the pending so the owner can retry
+        # with another YES instead of having to resend the whole request.
+        try:
+            import json as _json
+            body = _json.loads(result.body)
+            if body.get("status") == "failed":
+                await services.pending.stage_pending(outcome.intent)
+        except Exception:
+            pass  # Best effort — if re-staging fails, owner must resend
+        return result
 
     async def _apply_with_services(
         intent: dict[str, Any],
@@ -379,18 +393,16 @@ def create_app(
         """List all sites onboarded for this owner (multi-site support)."""
         services = await get_services()
         sites = services.sites.sites_for_owner(owner_id)
-        # Find which site is active (has active_site_id set).
+        # Find which site is active (has active_site_id set) in one query.
         active_id = None
-        for s in sites:
-            # Check the DB column directly for the active marker.
+        if sites:
             with services.sites._connect() as conn:
                 row = conn.execute(
-                    "SELECT active_site_id FROM onboarded_sites WHERE site_id = ?",
-                    (s.site_id,),
+                    "SELECT site_id FROM onboarded_sites WHERE owner_id = ? AND active_site_id IS NOT NULL",
+                    (owner_id,),
                 ).fetchone()
-                if row and row["active_site_id"]:
-                    active_id = s.site_id
-                    break
+                if row:
+                    active_id = row["site_id"]
         return {
             "sites": [
                 {

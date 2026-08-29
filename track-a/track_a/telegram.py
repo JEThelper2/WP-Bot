@@ -41,13 +41,12 @@ class TelegramReplySender:
             return
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        payload = {"chat_id": to, "text": text, "parse_mode": "Markdown"}
+        # Strip the owner_prefix ("tg_") that handle_telegram_update adds,
+        # because Telegram's API needs the raw numeric chat_id.
+        chat_id = to.removeprefix("tg_")
+        payload = {"chat_id": chat_id, "text": text}
         try:
             resp = await self._client.post(url, json=payload, timeout=15.0)
-            if resp.status_code == 400 and "parse_mode" in resp.text:
-                # Markdown parse failed — retry as plain text.
-                payload.pop("parse_mode", None)
-                resp = await self._client.post(url, json=payload, timeout=15.0)
             resp.raise_for_status()
             logger.info("sent Telegram message to %s (status %s)", to, resp.status_code)
         except httpx.HTTPStatusError as exc:

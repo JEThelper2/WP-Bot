@@ -255,13 +255,20 @@ class OnboardedSiteStore:
 # ---------------------------------------------------------------------------
 
 
-# Re-export the shared normalization as _normalize_url for local use.
-_normalize_url = normalize_url
 
 
 def has_edit_permissions(user: dict[str, Any]) -> bool:
-    caps = user.get("capabilities") or {}
-    return bool(caps.get("edit_posts"))
+    caps = user.get("capabilities")
+    if caps is not None:
+        # Capabilities are present (even if empty) — check directly.
+        return bool(caps.get("edit_posts"))
+    # WordPress only returns capabilities to Administrators (users with
+    # list_users).  For Editor-role users the field is omitted entirely.
+    # If the user authenticated successfully (got here from a 200 on
+    # /users/me) and no capabilities are available, accept it as a
+    # reasonable heuristic — permission errors will surface on the first
+    # write attempt if the user truly lacks edit_posts.
+    return True
 
 
 async def validate_site_access(
@@ -272,7 +279,7 @@ async def validate_site_access(
     client: WordPressClient | None = None,
 ) -> ValidationResult:
     """Read-only probe of credentials + permissions against the live site."""
-    normalized = _normalize_url(site_url)
+    normalized = normalize_url(site_url)
     if normalized is None:
         return ValidationResult(
             False, REASON_INVALID_URL, "the site URL is not a valid http(s) address"
@@ -334,7 +341,7 @@ async def onboard_site(
             message=validation.message,
         )
 
-    normalized = _normalize_url(site_url)
+    normalized = normalize_url(site_url)
     assert normalized is not None
     site = store.add_site(
         owner_id=owner_id,

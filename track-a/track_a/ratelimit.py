@@ -15,6 +15,7 @@ Usage::
 
 from __future__ import annotations
 
+import threading
 import time
 from collections import deque
 
@@ -31,27 +32,29 @@ class RateLimiter:
         self._window = window_seconds
         self._windows: dict[str, deque[float]] = {}
         self._last_cleanup = time.monotonic()
+        self._lock = threading.Lock()
 
     def is_rate_limited(self, key: str) -> bool:
         """Return True if the key has exceeded the rate limit."""
         now = time.monotonic()
-        self._maybe_cleanup(now)
+        with self._lock:
+            self._maybe_cleanup(now)
 
-        dq = self._windows.get(key)
-        if dq is None:
-            dq = deque()
-            self._windows[key] = dq
+            dq = self._windows.get(key)
+            if dq is None:
+                dq = deque()
+                self._windows[key] = dq
 
-        # Evict entries outside the window.
-        cutoff = now - self._window
-        while dq and dq[0] <= cutoff:
-            dq.popleft()
+            # Evict entries outside the window.
+            cutoff = now - self._window
+            while dq and dq[0] <= cutoff:
+                dq.popleft()
 
-        if len(dq) >= self._max:
-            return True
+            if len(dq) >= self._max:
+                return True
 
-        dq.append(now)
-        return False
+            dq.append(now)
+            return False
 
     def _maybe_cleanup(self, now: float) -> None:
         """Periodically evict empty or fully-expired keys."""

@@ -85,7 +85,7 @@ class CredentialStore:
         self.db_path = db_path
         self.vault = vault or Vault()
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(_CREDENTIALS_SCHEMA)
 
     def _connect(self) -> sqlite3.Connection:
@@ -93,10 +93,28 @@ class CredentialStore:
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
+    def _connection(self):
+        """Context manager that opens a connection and guarantees it is closed."""
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _open():
+            conn = self._connect()
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+        return _open()
+
     def set_credentials(self, site_url: str, username: str, app_password: str) -> None:
         """Encrypt and persist. Never stores plaintext."""
         token = self.vault.encrypt(app_password)
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO site_credentials (site_url, username, encrypted_password, created_at)
@@ -110,7 +128,7 @@ class CredentialStore:
 
     def get_credentials(self, site_url: str) -> tuple[str, str] | None:
         """Return (username, decrypted app password), or None if unknown."""
-        with self._connect() as conn:
+        with self._connection() as conn:
             row = conn.execute(
                 "SELECT username, encrypted_password FROM site_credentials WHERE site_url = ?",
                 (site_url,),
@@ -120,10 +138,10 @@ class CredentialStore:
         return row[0], self.vault.decrypt(row[1])
 
     def delete_credentials(self, site_url: str) -> None:
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute("DELETE FROM site_credentials WHERE site_url = ?", (site_url,))
 
     def list_sites(self) -> list[str]:
-        with self._connect() as conn:
+        with self._connection() as conn:
             rows = conn.execute("SELECT site_url FROM site_credentials").fetchall()
         return [r[0] for r in rows]

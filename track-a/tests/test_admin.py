@@ -101,7 +101,7 @@ class TestEscalationList:
         resp = client.get("/admin", headers=_auth_headers())
         assert resp.status_code == 200
         # Open: 3, Total: 3
-        assert "Open: <span" in resp.text
+        assert "Open: <strong" in resp.text
         assert "3" in resp.text
 
 

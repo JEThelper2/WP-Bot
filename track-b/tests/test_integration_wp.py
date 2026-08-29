@@ -33,7 +33,10 @@ WP_URL = os.environ.get("WPBOT_WP_TEST_URL", "")
 WP_USERNAME = os.environ.get("WPBOT_WP_TEST_USERNAME", "editor")
 WP_APP_PASSWORD = os.environ.get("WPBOT_WP_TEST_APP_PASSWORD", "")
 if not WP_APP_PASSWORD and _SANDBOX_PASSWORD_FILE.exists():
-    WP_APP_PASSWORD = _SANDBOX_PASSWORD_FILE.read_text().strip()
+    try:
+        WP_APP_PASSWORD = _SANDBOX_PASSWORD_FILE.read_text().strip()
+    except (PermissionError, OSError):
+        pass
 
 
 def _sandbox_available() -> bool:

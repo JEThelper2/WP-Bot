@@ -200,12 +200,7 @@ def _is_cancel(message_text: str) -> bool:
 
 
 def _plausible_url(raw: str) -> str | None:
-    """A quick sanity check mirroring B5's normalization.
-
-    Uses the shared ``normalize_url`` from shared-contract.  Returns
-    the normalized URL, or None if the message clearly isn't a website
-    address.
-    """
+    """A quick sanity check mirroring B5's normalization."""
     return normalize_url(raw)
 
 

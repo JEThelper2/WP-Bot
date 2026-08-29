@@ -201,6 +201,23 @@ def validate_intent_for_site(intent: dict[str, Any], config: SiteConfig) -> None
 # ---------------------------------------------------------------------------
 
 
+async def _log_failure(changelog: ChangeLog, change_id: str, intent: dict[str, Any], error_message: str) -> None:
+    """Log a failed write to the changelog so count_failed() works."""
+    try:
+        await changelog.record_change(
+            ChangeRow(
+                change_id=change_id,
+                owner_id=intent["owner_id"],
+                content_type=intent["content_type"],
+                action="failed",
+                before=None,
+                after={"error_message": error_message},
+            )
+        )
+    except Exception as exc:
+        logger.error("failed to log failure %s: %s", change_id, exc)
+
+
 def _failed_result(error_message: str) -> dict[str, Any]:
     result = {
         "contract_version": CONTRACT_VERSION,
@@ -237,6 +254,9 @@ async def apply_intent(
         validate_intent_for_site(intent, config)
     except (ContractValidationError, IntentNotAllowedError) as exc:
         logger.info("intent rejected by gate: %s", exc)
+        change_id = change_id or f"ch-{uuid.uuid4().hex[:12]}"
+        if changelog is not None:
+            await _log_failure(changelog, change_id, intent, str(exc))
         return _failed_result(str(exc))
 
     change_id = change_id or f"ch-{uuid.uuid4().hex[:12]}"
@@ -244,6 +264,8 @@ async def apply_intent(
         record = await _dispatch(intent, client)
     except (WordPressError, IntentNotAllowedError) as exc:
         logger.warning("WordPress write failed for owner %s: %s", intent["owner_id"], exc)
+        if changelog is not None:
+            await _log_failure(changelog, change_id, intent, str(exc))
         return _failed_result(str(exc))
 
     if changelog is not None:
