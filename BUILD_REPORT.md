@@ -4,7 +4,7 @@
 - Phase 0 (Audit): **DONE** — full codebase scan against PRODUCTION_SPEC_DETAILED.md and PRODUCTION_SPEC_APPENDIX.md. All 5 flagged decisions resolved by Justice. See §2–§5 of the original Phase 0 report.
 - Phase 1 (Data model): **DONE** — 5 new tables created per §1, 33 new tests, 347 total passing. All existing 314 tests unaffected. Commit: 2a2aacc.
 - Phase 2 (Reliability): **DONE** — reliability layer wired into request pipeline: idempotency (§6.1), DB-backed rate limiting (§6.2), circuit breaker with retry/backoff (§6.3), error code mapping (§17), owner-facing error messages. 32 new tests. Total: 379 passing, 11 skipped. Commit: 2f69812.
-- Phase 3 (Conversational state machine): **DONE** — four-state machine (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING) per §3. Template-based clarification (§3.4), exact confirmation word sets (§3.3), re-ask logic, undo matching (§3.5), context_history for LLM re-entry (§3.2). 29 new tests. Total: 403 passing, 11 skipped. Commit: 4d533a8.
+- Phase 3 (Conversational state machine): **DONE** — four-state machine (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING) per §3. Non-destructive actions skip confirmation (§3.1); destructive actions go through AWAITING_CONFIRMATION. Template-based clarification (§3.4), exact confirmation word sets (§3.3), re-ask logic, undo matching (§3.5), context_history with timestamps for LLM re-entry (§3.2). 29+ tests. Total: 405 passing, 11 skipped. Commits: 4d533a8, 447e3c4.
 - Phase 4 (Voice pipeline): NOT STARTED
 - Phase 5 (WhatsApp migration): NOT STARTED
 - Phase 6 (Infrastructure): NOT STARTED
@@ -124,12 +124,13 @@
 
 ### Test results
 ```
-403 passed, 11 skipped in 29.43s
+405 passed, 11 skipped in 42.33s
 ```
 - 314 original tests: all passing (unchanged)
 - 33 Phase 1 tests: all passing (unchanged)
 - 32 Phase 2 tests: all passing (unchanged)
 - 29 Phase 3 tests: all passing (new)
+- Updated integration tests: 5 passing
 - 4 pre-existing skipped (wp_fake import, Redis TTL timing)
 
 ### What was NOT changed
