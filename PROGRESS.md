@@ -10,11 +10,11 @@ Last updated: 2026-08-29
 - Phase 4 (Voice pipeline): DONE
 - Phase 5 (WhatsApp migration): DONE
 - Phase 6 (Infrastructure): DONE
-- Phase 7 (Onboarding): NOT STARTED
+- Phase 7 (Onboarding): DONE
 - Phase 8 (Owner-facing features): NOT STARTED
 
 ## Currently in progress
-Phase 6 complete. Ready for Phase 7 (Onboarding: §8 runbook execution on a fresh test site).
+Phase 7 complete. Ready for Phase 8 (Owner-facing features: §10 recap command, §10 draft/preview for high-impact edits).
 
 ## Phase 3 audit — §3 compliance checklist
 
@@ -57,7 +57,7 @@ Phase 6 complete. Ready for Phase 7 (Onboarding: §8 runbook execution on a fres
 
 ### §3.5 Undo
 - ✅ Undo matching: {undo, undo that, undo last change, revert} — exact set, case-insensitive
-- ✅ Undo only when no confirmation pending (state is None)
+- ✅ Undo when no confirmation pending (state is None or IDLE)
 - ✅ Track B undo() called with owner_id and optional site_id
 - ✅ Undo result relayed as completion or error message
 
@@ -83,6 +83,7 @@ Phase 6 complete. Ready for Phase 7 (Onboarding: §8 runbook execution on a fres
 - [2026-08-29] Phase 4: Voice pipeline per §4. §4.1 step 3: always echo transcript back (hard rule, not conditional on confidence). §4.1 step 4: low-confidence (< 0.5) prepends caveat. §4.1 step 5: affirmative → use transcript; other → treat as corrected text. VOICE_AWAITING_ECHO state added to session. source="voice" on handle_message triggers echo flow. Proxy confidence calculation (word_count / (duration * 2)). language_detected field on Transcription. GroqTranscriber populates language. Webhook handler passes source="voice" for audio messages. 18 new tests. Total: 423 passing, 11 skipped. Commit: 4e764c3.
 - [2026-08-29] Phase 5: WhatsApp migration audit and verification. Confirmed WhatsApp is primary channel (webhook, reply sender, media client, voice pipeline all implemented). WhatsAppReplySender now handles HTTP errors gracefully. Added reply sender error tests (429, connection error). Added end-to-end WhatsApp flow tests (webhook → pipeline → router → reply). Reliability tests verified with WhatsApp payloads (duplicate detection, rate limiting). Multi-tenant tests verified with WhatsApp sender_id resolution. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
 - [2026-08-29] Phase 6: Infrastructure per §7. Dockerfile for Railway (Python 3.12-slim). railway.json with health check. Fernet-based secrets encryption for WordPress Application Passwords (§7.2). Tenant store encrypts on write, decrypts at API call point. Pre-commit check for leaked API key patterns (sk-, AIza, ghp_, AKIA). TelegramAlertSender for operator notifications (§7.4). FallbackFrequencyTracker for AI provider monitoring. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
+- [2026-08-29] Phase 7: Onboarding per §8. Wired tenant_store into OnboardingFlow for §8 step 6-8 (create tenant, flip to active, set onboarded_at). Added root conftest.py for cross-track test imports. Fixed undo check to work in IDLE session state (not just state is None). Added 9 onboarding smoke tests covering full runbook flow, cancel, invalid URL, wrong password, insufficient permissions, post-onboarding text/undo/failure, and multi-tenant isolation. Fixed end-to-end outbound test (pre-seeded WordPress post for delete). Total: 461 passing, 11 skipped. Commit: 204aae9.
 
 ## Decisions resolved (from Phase 0 audit — 2026-08-29)
 1. **Content architecture (§13)**: Build against standard posts + categories (what exists in sandbox). Content-storage layer is swappable — no ACF dependency.

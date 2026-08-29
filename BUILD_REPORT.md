@@ -1,4 +1,4 @@
-# Build Report — 2026-08-29 (Updated through Phase 3)
+# Build Report — 2026-08-29 (Updated through Phase 7)
 
 ## 1. Phases completed
 - Phase 0 (Audit): **DONE** — full codebase scan against PRODUCTION_SPEC_DETAILED.md and PRODUCTION_SPEC_APPENDIX.md. All 5 flagged decisions resolved by Justice. See §2–§5 of the original Phase 0 report.
@@ -8,7 +8,7 @@
 - Phase 4 (Voice pipeline): **DONE** — §4.1 echo-back flow: always echo transcript, low-confidence caveat, affirmative/other reply handling. VOICE_AWAITING_ECHO state, proxy confidence, language_detected. 18 new tests. Total: 423 passing, 11 skipped. Commit: 4e764c3.
 - Phase 5 (WhatsApp migration): **DONE** — audit confirmed WhatsApp is primary channel. Reply sender error handling, e2e WhatsApp flow tests, reliability verified with WhatsApp payloads. 10 new tests. Total: 433 passing, 11 skipped. Commit: 2cd17e8.
 - Phase 6 (Infrastructure): **DONE** — Dockerfile, railway.json, Fernet secrets encryption, pre-commit key check, Telegram operator alerting, fallback frequency tracker. 17 new tests. Total: 450 passing, 11 skipped. Commit: f7456bd.
-- Phase 7 (Onboarding): NOT STARTED
+- Phase 7 (Onboarding): **DONE** — wired tenant_store into OnboardingFlow for §8 step 6-8 (create tenant record, flip to active, set onboarded_at). Fixed undo to work in IDLE session state (not just state is None). Added root conftest.py for cross-track test imports. 9 new onboarding smoke tests (full runbook, cancel, error paths, post-onboarding operations, multi-tenant isolation). Fixed end-to-end outbound test. Total: 461 passing, 11 skipped. Commit: 204aae9.
 - Phase 8 (Owner-facing features): NOT STARTED
 
 ## 2. Items that deviated from spec
