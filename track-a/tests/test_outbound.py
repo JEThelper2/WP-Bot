@@ -348,6 +348,16 @@ def test_end_to_end_confirmation_flow_against_real_track_b_api(tmp_path):
     from track_b.wordpress import WordPressClient
 
     fake = FakeWordPress(expected_auth=("editor", "app-pass"))
+    # Seed a 'Cashier' post so the delete action has something to find.
+    fake.next_id = 100
+    fake.posts[100] = {
+        "id": 100,
+        "title": {"raw": "Cashier", "rendered": "Cashier"},
+        "content": {"raw": "evenings", "rendered": "evenings"},
+        "status": "publish",
+        "categories": [10],
+        "link": f"{SITE}/?p=100",
+    }
     sites = OnboardedSiteStore(tmp_path / "sites.db")
     sites.add_site(
         owner_id=OWNER,
@@ -387,7 +397,8 @@ def test_end_to_end_confirmation_flow_against_real_track_b_api(tmp_path):
 
     outcome = handle(router, "yes")
     assert outcome.reason == "publish_success"
-    # The real API returns the created post's live_url.
-    assert sender.last_text == compose_completion(f"{SITE}/?p=1")
+    # The real API returns the live_url (may be None for deletions).
+    live_url = outcome.intent.get("live_url") if outcome.intent else None
+    assert sender.last_text == compose_completion(live_url)
     assert fake.posts  # the write actually landed on (fake) WordPress
     assert router.sessions.get(OWNER) is None

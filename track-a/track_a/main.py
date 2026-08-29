@@ -141,7 +141,7 @@ def create_app(
             parser=parser,
             sender=sender,
             trackb=trackb,
-            onboarding=OnboardingFlow(trackb=trackb),
+            onboarding=OnboardingFlow(trackb=trackb, db_path=settings.db_path),
             log_escalation=lambda owner, msg: log_escalation_request(settings.db_path, owner, msg),
             reliability=reliability,
         )

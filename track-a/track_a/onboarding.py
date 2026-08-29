@@ -221,10 +221,14 @@ class OnboardingFlow:
 
     Also handles multi-site switching: 'list sites' shows all onboarded
     sites for the owner, and 'switch to <site>' sets the active site.
+
+    §8: After successful onboarding, creates a tenant record in the
+    tenants table (§1.1) so reliability mechanisms (§6) work.
     """
 
-    def __init__(self, trackb: Any) -> None:
+    def __init__(self, trackb: Any, db_path: Any = None) -> None:
         self.trackb = trackb
+        self._db_path = db_path
         self._sessions: dict[str, OnboardState] = {}
         self._lock = threading.Lock()
 
@@ -336,6 +340,29 @@ class OnboardingFlow:
             self._clear(owner_id)
             new_site_id = result.get("site_id")
             logger.info("owner %s onboarded site %s (site_id=%s)", owner_id, state.site_url, new_site_id)
+
+            # §8 step 6: Create tenant record in the tenants table (§1.1).
+            # This enables reliability mechanisms (§6) for the tenant.
+            if self._db_path is not None:
+                try:
+                    from .secrets import encrypt_secret
+                    from .tenant_store import create_tenant, set_tenant_onboarded
+
+                    tenant = create_tenant(
+                        self._db_path,
+                        sender_id=owner_id,
+                        wp_site_url=state.site_url or "",
+                        wp_app_username=state.username or "",
+                        wp_app_password_enc=app_password,
+                        business_name="",
+                        status="onboarding",
+                    )
+                    # §8 step 8: Flip status to active, set onboarded_at.
+                    set_tenant_onboarded(self._db_path, tenant["id"])
+                    logger.info("tenant record created for owner %s (tenant_id=%s)", owner_id, tenant["id"])
+                except Exception as exc:
+                    logger.warning("Failed to create tenant record for %s: %s", owner_id, exc)
+
             # Mark this as the owner's active site in Track B.
             if new_site_id:
                 try:

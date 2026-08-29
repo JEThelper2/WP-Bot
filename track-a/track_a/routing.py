@@ -337,8 +337,10 @@ class IntentRouter:
             return await self._send(owner_id, outcome)
 
         # --- UNDO command (promised in the completion message). Only when
-        # no confirmation decision is pending. ---
-        if state is None and _is_undo(message_text):
+        # no confirmation decision is pending. §3.5 ---
+        if _is_undo(message_text) and (
+            state is None or state.state != "AWAITING_CONFIRMATION"
+        ):
             active_site = self.active_sites.get(owner_id)
             outcome = await self._handle_undo(owner_id, site_id=active_site)
             return await self._send(owner_id, outcome)
