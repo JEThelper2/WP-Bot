@@ -130,6 +130,23 @@ class TrackBClient:
         logger.warning("list_sites failed for owner %s: HTTP %d", owner_id, resp.status_code)
         return []
 
+    async def list_changes(self, owner_id: str, *, limit: int = 5) -> list[dict[str, Any]]:
+        """§10 Recap: fetch recent changes for the owner from Track B."""
+        try:
+            resp = await self._client.get(
+                f"{self.base_url}/changes",
+                params={"owner_id": owner_id, "limit": limit},
+                timeout=15.0,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("changes", [])
+            logger.warning(
+                "list_changes failed for owner %s: HTTP %d", owner_id, resp.status_code
+            )
+        except Exception as exc:
+            logger.warning("list_changes failed for owner %s: %s", owner_id, exc)
+        return []
+
     async def onboard_site(
         self,
         *,

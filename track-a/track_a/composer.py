@@ -43,6 +43,68 @@ def compose_confirmation(intent: dict[str, Any]) -> str:
     return translate("compose_generic", action=action, content_type=content_type, confirm=_confirm_change())
 
 
+def compose_confirmation_with_diff(
+    intent: dict[str, Any],
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> str:
+    """§10 Draft/preview: confirmation with before/after diff for high-impact edits.
+
+    For business_info_update and page_content_update, shows what's changing
+    in plain language: "Change your phone from 0801... to 0802...? Reply yes to confirm."
+    """
+    action = intent.get("action", "")
+    content_type = intent.get("content_type", "")
+    fields = intent.get("fields") or {}
+
+    if content_type == "business_info":
+        return _compose_business_info_diff(before, after, fields)
+
+    # Fallback to standard confirmation for other content types
+    return compose_confirmation(intent)
+
+
+def _compose_business_info_diff(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    fields: dict[str, Any],
+) -> str:
+    """§10: Before/after diff for business_info updates."""
+    confirm = _confirm_change()
+    changed_fields = []
+
+    for field_name, new_value in fields.items():
+        old_value = before.get(field_name)
+        if old_value is not None and str(old_value) != str(new_value):
+            changed_fields.append((field_name, str(old_value), str(new_value)))
+
+    if not changed_fields:
+        # No actual changes detected — fall back to standard confirmation
+        return _compose_business_info(fields)
+
+    if len(changed_fields) == 1:
+        field, old_val, new_val = changed_fields[0]
+        return translate(
+            "compose_business_info_update_with_before",
+            label=field,
+            old_values=old_val,
+            new_values=new_val,
+            confirm=confirm,
+        )
+
+    # Multiple fields changed
+    parts = []
+    for field, old_val, new_val in changed_fields:
+        parts.append(f"{field}: {old_val} → {new_val}")
+    changes = "; ".join(parts)
+    return translate(
+        "compose_business_info_update",
+        label="business info",
+        values=changes,
+        confirm=confirm,
+    )
+
+
 def _compose_job(action: str, fields: dict[str, Any]) -> str:
     title = str(fields.get("title") or "this job")
     confirm = _confirm_publish()

@@ -27,6 +27,7 @@ from typing import Any
 from .composer import (
     compose_completion,
     compose_confirmation,
+    compose_confirmation_with_diff,
     compose_error,
     compose_undo_done,
     compose_undo_error,
@@ -181,6 +182,19 @@ def _is_undo(text: str) -> bool:
         "undo that",
         "undo last change",
         "revert",
+    }
+
+
+def _is_recap(text: str) -> bool:
+    """§10 Recap: match recap/history commands (case-insensitive)."""
+    normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
+    return normalized in {
+        "recap",
+        "history",
+        "recent changes",
+        "what have i changed",
+        "what have i done",
+        "show my changes",
     }
 
 
@@ -345,6 +359,13 @@ class IntentRouter:
             outcome = await self._handle_undo(owner_id, site_id=active_site)
             return await self._send(owner_id, outcome)
 
+        # --- §10 RECAP command ---
+        if _is_recap(message_text) and (
+            state is None or state.state != "AWAITING_CONFIRMATION"
+        ):
+            outcome = await self._handle_recap(owner_id)
+            return await self._send(owner_id, outcome)
+
         # --- mid-conversation: awaiting a YES/NO (§3.3 AWAITING_CONFIRMATION) ---
         if state is not None and state.state == "AWAITING_CONFIRMATION":
             outcome = await self._handle_confirmation_reply(owner_id, state, message_text)
@@ -476,6 +497,18 @@ class IntentRouter:
 
         status = result.get("status")
         if status == "needs_confirmation":
+            # §10 Draft/preview: for high-impact edits, update the confirmation
+            # message with a before/after diff from Track B's staging result.
+            before = result.get("before")
+            after = result.get("after")
+            if before and after and _is_destructive(intent):
+                new_reply = compose_confirmation_with_diff(intent, before, after)
+                outcome = RouteOutcome(
+                    branch=outcome.branch,
+                    reply_text=new_reply,
+                    intent=outcome.intent,
+                    reason=outcome.reason,
+                )
             return outcome  # staged; send the confirmation prompt
 
         # Defensive: a Track B that executes immediately on stage (the old
@@ -542,6 +575,41 @@ class IntentRouter:
             branch="undo",
             reply_text=compose_undo_error(result.get("error_message")),
             reason="undo_failed",
+        )
+
+    async def _handle_recap(self, owner_id: str) -> RouteOutcome:
+        """§10 Recap: show the owner their last 5 changes from Track B."""
+        try:
+            changes = await self.trackb.list_changes(owner_id, limit=5)
+        except Exception as exc:
+            logger.warning("list_changes failed for owner %s: %s", owner_id, exc)
+            return RouteOutcome(
+                branch="recap",
+                reply_text=translate("recap_empty"),
+                reason="recap_error",
+            )
+        if not changes:
+            return RouteOutcome(
+                branch="recap",
+                reply_text=translate("recap_empty"),
+                reason="recap_empty",
+            )
+        lines = [translate("recap_header")]
+        for i, change in enumerate(changes, 1):
+            time_ago = _relative_time(change.get("created_at"))
+            summary = _change_summary(change)
+            if change.get("action") == "undo":
+                lines.append(
+                    translate("recap_undo_entry", index=i, time_ago=time_ago, summary=summary)
+                )
+            else:
+                lines.append(
+                    translate("recap_entry", index=i, time_ago=time_ago, summary=summary)
+                )
+        return RouteOutcome(
+            branch="recap",
+            reply_text="\n".join(lines),
+            reason="recap_shown",
         )
 
     async def _submit_pending(self, owner_id: str, intent: dict[str, Any]) -> RouteOutcome:
@@ -839,6 +907,55 @@ class IntentRouter:
 # ---------------------------------------------------------------------------
 # Exchange / context helpers
 # ---------------------------------------------------------------------------
+
+
+def _relative_time(iso_timestamp: str | None) -> str:
+    """Convert an ISO timestamp to a human-readable relative time string."""
+    if not iso_timestamp:
+        return "recently"
+    try:
+        ts = datetime.fromisoformat(iso_timestamp)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        now = datetime.now(UTC)
+        diff = (now - ts).total_seconds()
+        if diff < 60:
+            return "just now"
+        if diff < 3600:
+            mins = int(diff / 60)
+            return f"{mins} minute{'s' if mins != 1 else ''} ago"
+        if diff < 86400:
+            hours = int(diff / 3600)
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        days = int(diff / 86400)
+        return f"{days} day{'s' if days != 1 else ''} ago"
+    except (ValueError, TypeError):
+        return "recently"
+
+
+def _change_summary(change: dict[str, Any]) -> str:
+    """Generate a plain-language summary of a change for the recap command."""
+    action = change.get("action", "changed")
+    content_type = change.get("content_type", "content")
+    after = change.get("after") or {}
+
+    verb = {"create": "Added", "update": "Updated", "delete": "Removed"}.get(
+        action, "Changed"
+    )
+
+    if content_type == "job":
+        title = after.get("title") or "a job posting"
+        return f"{verb.lower()} job '{title}'"
+    if content_type == "announcement":
+        title = after.get("title") or "an announcement"
+        return f"{verb.lower()} announcement '{title}'"
+    if content_type == "business_info":
+        fields = list(after.keys()) if after else ["business info"]
+        return f"{verb.lower()} {', '.join(fields)}"
+    if content_type == "image":
+        slot = after.get("slot", "image")
+        return f"{verb.lower()} {slot} image"
+    return f"{verb.lower()} {content_type}"
 
 
 def _exchange(prior: SessionState | None, latest_owner_message: str | None) -> list[dict[str, str]]:

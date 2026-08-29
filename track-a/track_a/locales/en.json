@@ -71,5 +71,10 @@
   "compose_image_create": "Set your {slot} to the photo you sent. {confirm}",
   "compose_image_delete": "Remove your {slot} image. {confirm}",
   "compose_image_replace": "Replace your {slot} with the photo you sent. {confirm}",
-  "compose_generic": "I'd like to {action} your {content_type}. {confirm}"
+  "compose_generic": "I'd like to {action} your {content_type}. {confirm}",
+  "compose_business_info_update_with_before": "Change your {label} from {old_values} to {new_values}. {confirm}",
+  "recap_header": "Here are your recent changes:",
+  "recap_entry": "{index}. {time_ago}: {summary}",
+  "recap_empty": "No changes recorded yet. Send a message to update your site.",
+  "recap_undo_entry": "{index}. {time_ago}: Reverted {summary}"
 }

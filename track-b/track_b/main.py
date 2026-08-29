@@ -476,6 +476,29 @@ def create_app(
             )
         )
 
+    @app.get("/changes", response_model=None)
+    async def list_changes_endpoint(owner_id: str, limit: int = 5) -> JSONResponse:
+        """§10 Recap: list recent changes for the owner (last N entries)."""
+        services = await get_services()
+        changes = await services.changelog.list_changes(
+            owner_id=owner_id,
+            limit=limit,
+        )
+        return JSONResponse({
+            "changes": [
+                {
+                    "change_id": c.change_id,
+                    "action": c.action,
+                    "content_type": c.content_type,
+                    "before": c.before,
+                    "after": c.after,
+                    "live_url": c.live_url,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                }
+                for c in changes
+            ]
+        })
+
     return app
 
 
