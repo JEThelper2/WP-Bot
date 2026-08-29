@@ -7,14 +7,14 @@ Last updated: 2026-08-29
 - Phase 1 (Data model): DONE
 - Phase 2 (Reliability): DONE
 - Phase 3 (Conversational state machine): DONE
-- Phase 4 (Voice pipeline): NOT STARTED
+- Phase 4 (Voice pipeline): DONE
 - Phase 5 (WhatsApp migration): NOT STARTED
 - Phase 6 (Infrastructure): NOT STARTED
 - Phase 7 (Onboarding): NOT STARTED
 - Phase 8 (Owner-facing features): NOT STARTED
 
 ## Currently in progress
-Phase 3 complete and audited. Ready for Phase 4 (Voice pipeline: §4 transcription, echo-back, proxy confidence).
+Phase 4 complete. Ready for Phase 5 (WhatsApp migration: swap/extend Telegram webhook for WhatsApp Business API).
 
 ## Phase 3 audit — §3 compliance checklist
 
@@ -80,6 +80,7 @@ Phase 3 complete and audited. Ready for Phase 4 (Voice pipeline: §4 transcripti
 - [2026-08-29] Phase 1: Created 5 new data model tables per §1. Track A: tenants (§1.1), conversation_sessions (§1.2), processed_messages (§1.4), rate_limit_buckets (§1.5). Track B: action_log (§1.3) with InMemoryActionLog and SQLiteActionLog. 33 new tests. Total: 347 passing, 11 skipped. Commit: 2a2aacc.
 - [2026-08-29] Phase 2: Wired §6 reliability into request pipeline. New reliability.py: IdempotencyChecker (§6.1 processed_messages), DBRateLimiter (§6.2 rate_limit_buckets), CircuitBreaker (§6.3 retry+backoff+tenant status). Error code mapping (§17) with owner-facing messages. Circuit breaker wraps Track B calls in routing.py (submit_intent, undo). Webhook handler uses DB-backed idempotency+rate limiting when tenant exists, falls back to legacy mode. 32 new tests. Total: 379 passing, 11 skipped. Commit: 2f69812.
 - [2026-08-29] Phase 3: Conversational state machine per §3. Four states (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING). Replaced escalate with unclear → AWAITING_CLARIFICATION (§3.4 templates). Tightened _is_yes/_is_no to exact spec word sets (§3.3). Added re-ask logic: first ambiguous reply re-asks, second cancels (§3.3). Added _is_undo matching per §3.5. Updated context_history (§3.2) for LLM re-entry with ISO timestamps. Added confirmation_reask/confirmation_cancelled locale keys. Fixed IntentRouter.__init__ falsy SessionStore bug. Spec compliance fix: non-destructive actions (create, non-business_info update) skip confirmation and execute immediately; only destructive actions (delete, business_info update) go through AWAITING_CONFIRMATION. 29+ integration tests updated. Total: 405 passing, 11 skipped. Commits: 4d533a8, 447e3c4.
+- [2026-08-29] Phase 4: Voice pipeline per §4. §4.1 step 3: always echo transcript back (hard rule, not conditional on confidence). §4.1 step 4: low-confidence (< 0.5) prepends caveat. §4.1 step 5: affirmative → use transcript; other → treat as corrected text. VOICE_AWAITING_ECHO state added to session. source="voice" on handle_message triggers echo flow. Proxy confidence calculation (word_count / (duration * 2)). language_detected field on Transcription. GroqTranscriber populates language. Webhook handler passes source="voice" for audio messages. 18 new tests. Total: 423 passing, 11 skipped. Commit: 4e764c3.
 
 ## Decisions resolved (from Phase 0 audit — 2026-08-29)
 1. **Content architecture (§13)**: Build against standard posts + categories (what exists in sandbox). Content-storage layer is swappable — no ACF dependency.
