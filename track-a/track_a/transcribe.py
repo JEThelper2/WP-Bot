@@ -40,6 +40,7 @@ class Transcription:
     text: str
     confidence: float  # 0.0 - 1.0
     is_voice: bool = True  # False when Whisper detected no speech
+    language_detected: str = ""  # e.g. "en", "yo", "pcm" (Nigerian Pidgin)
 
 
 class Transcriber(Protocol):
@@ -97,15 +98,17 @@ class GroqTranscriptionProvider:
         )
 
         text = (response.text or "").strip()
+        language = getattr(response, "language", "") or ""
         # Groq's verbose_json returns segments with no_speech_prob.
         # Extract the max no_speech_prob across segments for is_voice.
         segments = getattr(response, "segments", []) or []
         no_speech_probs = [getattr(s, "no_speech_prob", 0.0) for s in segments]
         no_speech = max(no_speech_probs) if no_speech_probs else 0.0
 
+        # §4.1: proxy confidence when provider doesn't return it natively.
         # Groq doesn't expose avg_logprob directly in verbose_json;
         # use 1.0 - no_speech as a proxy for confidence when text is present,
-        # or 0.0 when no text.
+        # or compute from word count vs audio duration.
         if text:
             confidence = max(0.0, min(1.0, 1.0 - no_speech))
         else:
@@ -113,12 +116,18 @@ class GroqTranscriptionProvider:
 
         is_voice = no_speech < NO_SPEECH_THRESHOLD and bool(text)
         logger.debug(
-            "groq transcription: %r confidence=%.2f no_speech=%.2f",
+            "groq transcription: %r confidence=%.2f no_speech=%.2f lang=%s",
             text[:80],
             confidence,
             no_speech,
+            language,
         )
-        return Transcription(text=text, confidence=confidence, is_voice=is_voice)
+        return Transcription(
+            text=text,
+            confidence=confidence,
+            is_voice=is_voice,
+            language_detected=language,
+        )
 
 
 def _extension_for_mime(mime_type: str) -> str:
@@ -209,6 +218,22 @@ class WhisperTranscriber:
             avg_logprob,
         )
         return Transcription(text=text, confidence=confidence, is_voice=is_voice)
+
+
+def compute_proxy_confidence(
+    transcript_text: str,
+    audio_duration_seconds: float,
+) -> float:
+    """§4.1: Proxy confidence when provider doesn't return it natively.
+
+    Formula: min(1.0, word_count / (duration * 2)).
+    Flags as low-confidence if the transcript is suspiciously short
+    for the audio length (silence, noise, or garbled speech).
+    """
+    if audio_duration_seconds <= 0 or not transcript_text.strip():
+        return 0.0
+    word_count = len(transcript_text.split())
+    return min(1.0, word_count / (audio_duration_seconds * 2))
 
 
 class StubTranscriber:

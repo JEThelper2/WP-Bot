@@ -479,8 +479,12 @@ async def _route_message(app: FastAPI, db_path: Any, row_id: int) -> None:
     message_text = (row or {}).get("message_text")
     if not message_text:
         return
+    # §4.1: voice notes get source="voice" to trigger the echo-back flow.
+    source = "voice" if (row or {}).get("message_type") == "audio" else "text"
     try:
-        await app.state.router.handle_message(row["owner_phone"], message_text)
+        await app.state.router.handle_message(
+            row["owner_phone"], message_text, source=source
+        )
     except Exception:
         logger.exception("router failed for message row %s", row_id)
 

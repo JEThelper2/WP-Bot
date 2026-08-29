@@ -13,6 +13,8 @@
   "undo_done": "Done — your last change has been reverted.",
   "completion_with_url": "Done! Here's the live change: {url}. You can undo this within 24h by replying UNDO.",
   "completion": "Done! The change is live. You can undo this within 24h by replying UNDO.",
+  "voice_echo": "I heard: \"{transcript}\" — is that right? Reply yes to continue, or send the correct version as text.",
+  "voice_echo_low_confidence": "(I'm not fully sure I heard that correctly) I heard: \"{transcript}\" — is that right? Reply yes to continue, or send the correct version as text.",
   "fallback_reply": "Sorry — I couldn't make out your voice message. Could you try sending it again, or type your request as a text message?",
   "confirmation_reask": "Sorry, should I go ahead? Reply yes or no.",
   "confirmation_cancelled": "Okay, the request has been cancelled. You can re-send it anytime.",

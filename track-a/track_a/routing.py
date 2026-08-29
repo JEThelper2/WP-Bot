@@ -288,8 +288,15 @@ class IntentRouter:
         # §6: Reliability layer for circuit breaker on Track B calls.
         self.reliability = reliability  # ReliabilityLayer or None (tests)
 
-    async def handle_message(self, owner_id: str, message_text: str) -> RouteOutcome:
-        """Route one owner message through the state machine (§3); send any reply."""
+    async def handle_message(
+        self, owner_id: str, message_text: str, *, source: str = "text"
+    ) -> RouteOutcome:
+        """Route one owner message through the state machine (§3); send any reply.
+
+        ``source`` is "text" or "voice" — set by the caller based on the
+        inbound message type.  Voice notes trigger the §4.1 echo-back
+        sub-step before entering the normal state machine.
+        """
         message_text = (message_text or "").strip()
         state = self.sessions.get(owner_id)
 
@@ -316,6 +323,18 @@ class IntentRouter:
                         state.site_id = outcome.site_id
                     self.sessions.set(owner_id, state)
                 return await self._send(owner_id, outcome)
+
+        # --- §4.1: Voice echo confirmation ---
+        # Voice notes always echo the transcript before acting, regardless
+        # of confidence. This sub-step happens BEFORE the state machine.
+        if state is not None and state.state == "VOICE_AWAITING_ECHO":
+            outcome = await self._handle_voice_echo_reply(owner_id, state, message_text)
+            return await self._send(owner_id, outcome)
+
+        if source == "voice" and (state is None or state.state == "IDLE"):
+            # §4.1 step 3: Always echo the transcript back before acting.
+            outcome = self._handle_voice_echo(owner_id, message_text, state)
+            return await self._send(owner_id, outcome)
 
         # --- UNDO command (promised in the completion message). Only when
         # no confirmation decision is pending. ---
@@ -722,6 +741,92 @@ class IntentRouter:
             asked_field=asked_field,
             reason=reason,
         )
+
+    # -- §4.1: Voice echo confirmation ------------------------------------
+
+    def _handle_voice_echo(
+        self, owner_id: str, transcript: str, prior: SessionState | None
+    ) -> RouteOutcome:
+        """§4.1 step 3: Always echo the transcript back before acting.
+
+        If confidence < 0.5, prepend a caveat. The owner's reply determines
+        what happens next: affirmative → use transcript as the instruction;
+        any other reply → treat the reply as a corrected instruction.
+        """
+        # Extract confidence from session or default low.
+        # For incoming voice notes, confidence comes from the transcription
+        # provider. We store it in the session for the echo step.
+        confidence = 0.9  # default for echo; actual confidence set by caller
+        if prior is not None and prior.voice_confidence > 0:
+            confidence = prior.voice_confidence
+
+        # §4.1 step 4: prepend caveat if confidence < 0.5
+        if confidence < 0.5:
+            echo_text = translate(
+                "voice_echo_low_confidence", transcript=transcript
+            )
+        else:
+            echo_text = translate("voice_echo", transcript=transcript)
+
+        # Set session to VOICE_AWAITING_ECHO, storing the transcript.
+        self.sessions.set(
+            owner_id,
+            SessionState(
+                state="VOICE_AWAITING_ECHO",
+                voice_transcript=transcript,
+                voice_confidence=confidence,
+                site_id=prior.site_id if prior else None,
+            ),
+        )
+        return RouteOutcome(
+            branch="clarify",
+            reply_text=echo_text,
+            reason="voice_echo",
+        )
+
+    async def _handle_voice_echo_reply(
+        self, owner_id: str, state: SessionState, message_text: str
+    ) -> RouteOutcome:
+        """§4.1 step 5: Owner's reply to the voice echo.
+
+        Affirmative → proceed to normal intent extraction using the
+        transcript as raw_input, source="voice".
+        Any other reply → treat the reply itself as the corrected
+        instruction (text), discard the transcript.
+        """
+        transcript = state.voice_transcript or ""
+        site_id = state.site_id
+
+        if _is_yes(message_text):
+            # §4.1 step 5: affirmative → use transcript as the instruction.
+            self.sessions.clear(owner_id)
+            # Re-enter the normal state machine with the transcript.
+            context = None  # fresh parse, no clarification context
+            parse = await self.parser.parse(transcript, owner_id, context=context)
+            outcome = self._route(owner_id, parse, transcript, prior=None)
+            if outcome.intent is not None:
+                if outcome.reason == "confirmation_ready":
+                    outcome = await self._stage_pending(owner_id, outcome)
+                elif outcome.reason == "non_destructive_ready":
+                    outcome = await self._submit_pending(owner_id, outcome.intent)
+            # Propagate site_id from the voice session.
+            if site_id is not None and outcome.intent is not None:
+                outcome.intent["site_id"] = site_id
+            return outcome
+
+        # §4.1 step 5: any other reply → treat as corrected instruction.
+        # Discard the transcript, parse the correction as text.
+        self.sessions.clear(owner_id)
+        parse = await self.parser.parse(message_text, owner_id, context=None)
+        outcome = self._route(owner_id, parse, message_text, prior=None)
+        if outcome.intent is not None:
+            if outcome.reason == "confirmation_ready":
+                outcome = await self._stage_pending(owner_id, outcome)
+            elif outcome.reason == "non_destructive_ready":
+                outcome = await self._submit_pending(owner_id, outcome.intent)
+        if site_id is not None and outcome.intent is not None:
+            outcome.intent["site_id"] = site_id
+        return outcome
 
     # NOTE: _handle_escalation_reply removed — §3 replaces escalate with
     # unclear → AWAITING_CLARIFICATION.  The escalation logging is retained

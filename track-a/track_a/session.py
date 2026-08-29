@@ -41,7 +41,7 @@ SESSION_TTL_SECONDS = 15 * 60
 
 @dataclass
 class SessionState:
-    state: str = "IDLE"  # IDLE | AWAITING_CLARIFICATION | AWAITING_CONFIRMATION | EXECUTING
+    state: str = "IDLE"  # IDLE | AWAITING_CLARIFICATION | AWAITING_CONFIRMATION | EXECUTING | VOICE_AWAITING_ECHO
     pending_intent: dict[str, Any] | None = None  # last parsed intent
     asked_field: str | None = None  # field the last clarification question targeted
     turns: int = 0  # clarification turns consumed so far
@@ -53,6 +53,10 @@ class SessionState:
     original_message: str | None = None  # retained for escalation logging
     site_id: str | None = None  # active site for multi-site owners
     expires_at: float = 0.0  # monotonic expiry timestamp (set by SessionStore)
+    # §4.1: voice echo confirmation — transcript waiting for owner verification.
+    voice_transcript: str | None = None  # the transcribed text awaiting echo-confirm
+    voice_confidence: float = 0.0  # confidence score for the voice note
+    source: str = "text"  # 'text' | 'voice' — tracks how the current request originated
 
 
 class SessionStore:
