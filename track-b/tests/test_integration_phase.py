@@ -146,27 +146,16 @@ def test_clarification_loop_end_to_end(tmp_path):
     # YES publishes the clarified request.
     send(world.client, "yes", "wamid.clar.3")
     assert len(world.fake_wp.posts) == 1
-    assert list(world.fake_wp.posts.values())[0]["title"]["raw"] == "Cashier"
+    assert list(world.fake_wp.posts.values())[0]["title"]["raw"] == "Cashier"# ----------------------------------------------------------- unclear flow
 
-
-# ----------------------------------------------------------- escalation flow
-
-
-def test_escalation_flow_end_to_end(tmp_path):
+def test_unsupported_sends_clarification_end_to_end(tmp_path):
+    """§3: unsupported → unclear → AWAITING_CLARIFICATION (not escalate)."""
     world = build_world(tmp_path, IntentParseResult(status="unsupported", confidence=0.0))
 
-    # Out-of-scope request -> the fixed escalation message.
+    # Out-of-scope request -> template clarification question.
     send(world.client, "redesign my homepage", "wamid.esc.1")
-    assert world.sender.sent[-1] == (OWNER, translate("escalation_reply"))
-
-    # YES -> escalation logged, owner confirmed.
-    send(world.client, "yes", "wamid.esc.2")
-    assert world.sender.sent[-1] == (OWNER, translate("escalation_confirm"))
-
-    # Logged and retrievable (PRD §10) for a human to pick up.
-    resp = world.client.get("/escalations")
-    assert resp.json()["count"] == 1
-    row = resp.json()["escalations"][0]
-    assert row["owner_phone"] == OWNER
-    assert row["original_message"] == "redesign my homepage"
-    assert row["status"] == "new"
+    reply = world.sender.sent[-1][1]
+    assert "rephrase" in reply.lower() or "understand" in reply.lower()
+    # State is AWAITING_CLARIFICATION, not escalate.
+    state = world.router.sessions.get(OWNER)
+    assert state is not None and state.state == "AWAITING_CLARIFICATION"

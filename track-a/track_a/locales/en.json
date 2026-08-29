@@ -14,9 +14,8 @@
   "completion_with_url": "Done! Here's the live change: {url}. You can undo this within 24h by replying UNDO.",
   "completion": "Done! The change is live. You can undo this within 24h by replying UNDO.",
   "fallback_reply": "Sorry — I couldn't make out your voice message. Could you try sending it again, or type your request as a text message?",
-  "escalation_reply": "That's outside what I can currently handle automatically — things like job postings, announcements, and your business info (hours, contact, address, prices). For anything else, I can connect you with a developer to make the change for a small fee. Want me to do that?",
-  "escalation_confirm": "Done — I've logged your request and someone will reach out about it. Anything else I can help with?",
-  "escalation_decline": "No problem! If you change your mind, just ask. Anything else I can do?",
+  "confirmation_reask": "Sorry, should I go ahead? Reply yes or no.",
+  "confirmation_cancelled": "Okay, the request has been cancelled. You can re-send it anytime.",
   "no_intent_question": "Sorry — I couldn't quite understand your request. You can ask me to post a job, add an announcement, or update your business info like hours, contact, address, or prices. Could you rephrase it?",
   "still_unsure": "I'm having trouble understanding what you'd like to change. Could you text me the request in one message, for example: \"post a job for a part-time barista\" or \"change my hours to 9-6\"?",
 

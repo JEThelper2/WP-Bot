@@ -1,19 +1,27 @@
-"""Short-lived per-owner conversation state for the clarification loop.
+"""Short-lived per-owner conversation state machine (§3).
 
-After A3 parsing, the router (A4) may need to hold on to a little state
-per owner so a follow-up message can re-enter intent parsing with the
-context of the prior exchange:
+Four states per PRODUCTION_SPEC_DETAILED.md §3.1:
 
-- `clarify`  — we asked a targeted question; `pending_intent` / the
-  `exchange` transcript give the next parse call the prior context.
-- `escalate` — we offered to connect the owner with a developer;
-  `original_message` is what triggered it, used when they reply "yes".
+- ``IDLE``                    — no open conversation, next message parsed fresh.
+- ``AWAITING_CLARIFICATION``  — bot asked a question, waiting on a specific answer.
+- ``AWAITING_CONFIRMATION``   — bot asked yes/no before a destructive/high-impact action.
+- ``EXECUTING``               — action in flight (transient; prevents double-submit).
+
+Transitions (§3.1):
+- IDLE → AWAITING_CLARIFICATION: confidence < 0.7, required slot missing, or ambiguous entity.
+- IDLE → AWAITING_CONFIRMATION: destructive action (delete, business_info, page content update).
+- IDLE → EXECUTING: unambiguous, non-destructive action (e.g. menu_item_add).
+- AWAITING_CLARIFICATION → IDLE: owner resolves the missing/ambiguous slot.
+- AWAITING_CONFIRMATION → EXECUTING: owner replies affirmative.
+- AWAITING_CONFIRMATION → IDLE: owner replies negative or unrelated (cancel).
+- EXECUTING → IDLE: action completes (success or failure).
+- Any state → IDLE: session expiry (15 min inactivity).
 
 This is deliberately *not* the source of truth for any content — Track B
 owns site state and the change log. This is just enough in-memory state
 to hold a conversation together inside Track A. In-memory is fine for a
-single worker; a multi-worker deployment should swap `SessionStore` for a
-Redis-backed implementation with the same two-method interface.
+single worker; a multi-worker deployment should swap ``SessionStore`` for a
+Redis-backed implementation with the same interface.
 
 Sessions expire after ``SESSION_TTL_SECONDS`` (default 15 minutes, matching
 Track B's pending confirmation window).  Stale sessions are lazily cleaned
@@ -33,14 +41,16 @@ SESSION_TTL_SECONDS = 15 * 60
 
 @dataclass
 class SessionState:
-    branch: str | None = None  # "clarify" | "escalate" | "confirm" | None
+    state: str = "IDLE"  # IDLE | AWAITING_CLARIFICATION | AWAITING_CONFIRMATION | EXECUTING
     pending_intent: dict[str, Any] | None = None  # last parsed intent
-    asked_field: str | None = None  # field the last question targeted
+    asked_field: str | None = None  # field the last clarification question targeted
     turns: int = 0  # clarification turns consumed so far
-    # Transcript of the exchange (owner messages + our replies), newest
-    # last, used to build the LLM context on re-entry.
+    re_ask_count: int = 0  # §3.3: confirmation re-ask counter (max 1 re-ask)
+    # §3.2: context_history — last 6 turns (3 owner + 3 bot), used for LLM re-entry.
+    context_history: list[dict[str, str]] = field(default_factory=list)
+    # Legacy alias for context_history (used by existing exchange-based code).
     exchange: list[dict[str, str]] = field(default_factory=list)
-    original_message: str | None = None  # message that triggered escalation
+    original_message: str | None = None  # retained for escalation logging
     site_id: str | None = None  # active site for multi-site owners
     expires_at: float = 0.0  # monotonic expiry timestamp (set by SessionStore)
 

@@ -305,7 +305,7 @@ class TestSiteIdInRouting:
         assert tb.staged_intents[0].get("site_id") == "site-beta"
 
     def test_site_id_persists_across_clarification(self):
-        """site_id survives through the clarify branch."""
+        """site_id survives through the clarify state."""
         intent_no_title = _make_intent(fields={"description": "cash handling"})
         intent_full = _make_intent()
         tb = FakeTrackBForRouter()

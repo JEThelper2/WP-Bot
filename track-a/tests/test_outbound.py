@@ -295,7 +295,8 @@ def test_no_cancels_and_relays_discard_never_publishes():
     assert router.sessions.get(OWNER) is None  # pending intent discarded
 
 
-def test_ambiguous_reply_resends_confirmation():
+def test_ambiguous_reply_reasks_once():
+    """§3.3: first ambiguous reply → re-ask; second → cancel."""
     intent = make_intent()
     sender = FakeSender()
     router = start_confirmation(
@@ -304,11 +305,20 @@ def test_ambiguous_reply_resends_confirmation():
         FakeTrackB(),
         intent,
     )
+    # First ambiguous reply: re-ask.
     outcome = handle(router, "maybe?")
-    assert outcome.reason == "confirmation_repeat"
-    assert sender.last_text == compose_confirmation(intent)
+    assert outcome.reason == "confirmation_reask"
+    assert sender.last_text == translate("confirmation_reask")
     # Still awaiting a decision; Track B untouched.
-    assert router.sessions.get(OWNER).pending_intent == intent
+    state = router.sessions.get(OWNER)
+    assert state.pending_intent == intent
+    assert state.re_ask_count == 1
+
+    # Second ambiguous reply: cancel.
+    outcome = handle(router, "hmm")
+    assert outcome.reason == "confirmation_cancelled"
+    assert sender.last_text == translate("confirmation_cancelled")
+    assert router.sessions.get(OWNER) is None  # session cleared
 
 
 # ------------------------------------------------- end-to-end vs real API

@@ -1,18 +1,16 @@
 """Post-parse routing (A4): where does each parsed intent go?
 
-Every `IntentParseResult` from A3 lands in exactly one of three branches:
+Every `IntentParseResult` from A3 lands in exactly one of the four
+states from PRODUCTION_SPEC_DETAILED.md §3.1:
 
-- `confirm`  — confidence >= CONFIDENCE_THRESHOLD AND all fields required
-  for that content_type/action are present. A5 takes over from here
-  (confirmation messaging); we carry the intent forward, no reply yet.
-- `clarify`  — confidence below threshold OR required fields missing. We
-  send ONE *targeted* question (never a generic "I didn't understand"):
-  the missing field when one is missing, otherwise a restatement of the
-  parsed intent to confirm. The owner's reply re-enters A3 with the prior
-  exchange as context (carried in `session.SessionStore` per owner_id).
-- `escalate` — A3 returned the unsupported sentinel. We send the fixed
-  escalation message; a "yes" logs an escalation request (owner, original
-  message) that a human can pick up manually. PRD §10.
+- ``IDLE`` — no pending action; next message parsed fresh.
+- ``AWAITING_CLARIFICATION`` — confidence < 0.7, required field missing,
+  or ambiguous entity. We send a template-based question (§3.4). The
+  owner's reply re-enters A3 with conversation history (§3.2).
+- ``AWAITING_CONFIRMATION`` — destructive/high-impact action. We send
+  the confirmation prompt. The owner's YES/NO decides what happens next.
+  §3.3: re-ask once on ambiguous reply, then cancel.
+- ``EXECUTING`` — action in flight (transient).
 
 The confidence threshold is a named constant, easy to tune.
 """
@@ -54,24 +52,20 @@ CLARIFICATION_MAX_TURNS = 3
 # ---------------------------------------------------------------------------
 
 
-def _escalation_reply() -> str:
-    return translate("escalation_reply")
-
-
-def _escalation_confirm() -> str:
-    return translate("escalation_confirm")
-
-
-def _escalation_decline() -> str:
-    return translate("escalation_decline")
-
-
 def _no_intent_question() -> str:
     return translate("no_intent_question")
 
 
 def _still_unsure() -> str:
     return translate("still_unsure")
+
+
+def _confirmation_reask() -> str:
+    return translate("confirmation_reask")
+
+
+def _confirmation_cancelled() -> str:
+    return translate("confirmation_cancelled")
 
 # ---------------------------------------------------------------------------
 # Required-field knowledge (mirrors shared-contract/intent.schema.json)
@@ -151,66 +145,41 @@ def targeted_question(content_type: str | None, field: str | None) -> str:
 
 
 def _is_yes(text: str) -> bool:
+    """§3.3: exact affirmative word set (case-insensitive)."""
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
         "yes",
-        "yep",
         "yeah",
-        "y",
-        "sure",
+        "yep",
+        "confirm",
         "ok",
         "okay",
-        "do it",
-        "please",
-        "yes please",
-        "please do",
-        "please do it",
         "go ahead",
-        "go for it",
-        "sounds good",
-        "correct",
-        "thats right",
-        "absolutely",
-        "for sure",
-        "yeah do it",
-        "yes do it",
-        "do that",
-        "sure do",
-    } or normalized.startswith("yes")
+        "do it",
+    }
 
 
 def _is_no(text: str) -> bool:
+    """§3.3: exact negative word set (case-insensitive)."""
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
         "no",
         "nope",
-        "nah",
-        "not now",
-        "no thanks",
-        "no thank you",
-        "n",
-        "never mind",
-        "skip it",
-        "forget it",
-        "no way",
-        "not really",
-    } or normalized.startswith("no ")
+        "cancel",
+        "stop",
+        "dont",
+        "don't",
+    }
 
 
 def _is_undo(text: str) -> bool:
-    """The UNDO command promised by the completion message."""
+    """§3.5: undo command variants (case-insensitive)."""
     normalized = re.sub(r"[^a-z ]", "", (text or "").strip().lower())
     return normalized in {
         "undo",
-        "undo it",
         "undo that",
-        "undo this",
+        "undo last change",
         "revert",
-        "revert it",
-        "revert that",
-        "take it back",
-        "reverse it",
-        "reverse that",
     }
 
 
@@ -221,7 +190,7 @@ def _is_undo(text: str) -> bool:
 
 @dataclass
 class RouteOutcome:
-    branch: str  # "confirm" | "clarify" | "escalate" | "onboarding"
+    branch: str  # state machine outcome: "confirm" | "clarify" | "unclear" | "onboarding" | "undo"
     reply_text: str | None = None
     intent: dict[str, Any] | None = None  # confirmation-ready intent (A5)
     asked_field: str | None = None
@@ -288,7 +257,7 @@ class IntentRouter:
         reliability: Any = None,
     ) -> None:
         self.parser = parser or IntentParser()
-        self.sessions = sessions or SessionStore()
+        self.sessions = sessions if sessions is not None else SessionStore()
         self.threshold = threshold
         self.log_escalation = log_escalation or (lambda owner, msg: None)
         self.sender = sender or ReplySender()
@@ -304,16 +273,16 @@ class IntentRouter:
         self.reliability = reliability  # ReliabilityLayer or None (tests)
 
     async def handle_message(self, owner_id: str, message_text: str) -> RouteOutcome:
-        """Route one owner message to exactly one branch; send any reply."""
+        """Route one owner message through the state machine (§3); send any reply."""
         message_text = (message_text or "").strip()
         state = self.sessions.get(owner_id)
 
         # --- onboarding (PRD §12): an active walkthrough always wins, and
         # a fresh trigger starts one — but never hijack a message while a
-        # confirmation/escalation decision is pending.
+        # confirmation decision is pending.
         # Site-switch commands are also routed through onboarding even when
         # the owner is mid-flow (they interrupt onboarding but not
-        # confirmation/escalation). ---
+        # confirmation). ---
         if self.onboarding is not None and (
             self.onboarding.is_active(owner_id)
             or self.onboarding.is_switch_site_trigger(message_text)
@@ -333,23 +302,20 @@ class IntentRouter:
                 return await self._send(owner_id, outcome)
 
         # --- UNDO command (promised in the completion message). Only when
-        # no confirmation/escalation decision is pending. ---
+        # no confirmation decision is pending. ---
         if state is None and _is_undo(message_text):
             active_site = self.active_sites.get(owner_id)
             outcome = await self._handle_undo(owner_id, site_id=active_site)
             return await self._send(owner_id, outcome)
 
-        # --- mid-conversation: awaiting a YES/NO on an offer or publish ---
-        if state is not None and state.branch == "escalate":
-            outcome = self._handle_escalation_reply(owner_id, state, message_text)
-            return await self._send(owner_id, outcome)
-        if state is not None and state.branch == "confirm":
+        # --- mid-conversation: awaiting a YES/NO (§3.3 AWAITING_CONFIRMATION) ---
+        if state is not None and state.state == "AWAITING_CONFIRMATION":
             outcome = await self._handle_confirmation_reply(owner_id, state, message_text)
             return await self._send(owner_id, outcome)
 
-        # --- normal path: parse (with prior-exchange context if clarifying) ---
+        # --- normal path: parse (with conversation history if clarifying) ---
         context = (
-            _format_exchange(state) if state is not None and state.branch == "clarify" else None
+            _format_exchange(state) if state is not None and state.state == "AWAITING_CLARIFICATION" else None
         )
         parse = await self.parser.parse(message_text, owner_id, context=context)
         outcome = self._route(owner_id, parse, message_text, prior=state)
@@ -397,6 +363,7 @@ class IntentRouter:
     async def _handle_confirmation_reply(
         self, owner_id: str, state: SessionState, message_text: str
     ) -> RouteOutcome:
+        """§3.3: AWAITING_CONFIRMATION reply handling with re-ask logic."""
         intent = state.pending_intent
         if intent is None:
             self.sessions.clear(owner_id)
@@ -407,9 +374,8 @@ class IntentRouter:
             )
 
         if _is_no(message_text):
-            # NO cancels: tell Track B to discard the staged pending, then
-            # clear locally. No WordPress write is ever made (Track B's
-            # discard path writes nothing).
+            # §3.3: AWAITING_CONFIRMATION → IDLE on negative reply.
+            # Tell Track B to discard the staged pending, then clear locally.
             await self._discard_pending(owner_id, intent)
             self.sessions.clear(owner_id)
             return RouteOutcome(
@@ -419,13 +385,29 @@ class IntentRouter:
             )
 
         if _is_yes(message_text):
+            # §3.3: AWAITING_CONFIRMATION → EXECUTING on affirmative.
             return await self._submit_pending(owner_id, intent)
 
-        # Not a clear yes/no: re-send the confirmation prompt.
+        # §3.3: Not a clear yes/no — re-ask once.
+        # "if the second reply is also unmatched, cancel the pending action
+        # and return to IDLE, telling the owner it was cancelled."
+        if state.re_ask_count >= 1:
+            # Second unmatched reply: cancel and return to IDLE.
+            await self._discard_pending(owner_id, intent)
+            self.sessions.clear(owner_id)
+            return RouteOutcome(
+                branch="confirm",
+                reply_text=_confirmation_cancelled(),
+                reason="confirmation_cancelled",
+            )
+
+        # First unmatched reply: re-ask once.
+        state.re_ask_count += 1
+        self.sessions.set(owner_id, state)
         return RouteOutcome(
             branch="confirm",
-            reply_text=compose_confirmation(intent),
-            reason="confirmation_repeat",
+            reply_text=_confirmation_reask(),
+            reason="confirmation_reask",
         )
 
     async def _stage_pending(self, owner_id: str, outcome: RouteOutcome) -> RouteOutcome:
@@ -597,19 +579,14 @@ class IntentRouter:
         original_message: str,
         prior: SessionState | None,
     ) -> RouteOutcome:
+        # §3.1: unsupported → unclear → AWAITING_CLARIFICATION with template question.
         if parse.status == "unsupported":
-            self.sessions.set(
+            return self._clarify(
                 owner_id,
-                SessionState(
-                    branch="escalate",
-                    original_message=original_message,
-                    exchange=_exchange(prior, original_message),
-                    site_id=prior.site_id if prior else None,
-                ),
-            )
-            return RouteOutcome(
-                branch="escalate",
-                reply_text=_escalation_reply(),
+                prior,
+                asked_field=None,
+                intent=None,
+                original_message=original_message,
                 reason="unsupported",
             )
 
@@ -632,11 +609,15 @@ class IntentRouter:
             self.active_sites.set(owner_id, prior.site_id)
         missing = missing_required_fields(intent)
         if parse.confidence >= self.threshold and not missing:
-            # Confirmation-ready: hold the intent and send the confirmation
-            # prompt (A5) — the owner's YES/NO decides what happens next.
+            # §3.1: IDLE → AWAITING_CONFIRMATION: hold the intent and send
+            # the confirmation prompt (A5) — the owner's YES/NO decides.
             self.sessions.set(
                 owner_id,
-                SessionState(branch="confirm", pending_intent=intent, site_id=prior.site_id if prior else None),
+                SessionState(
+                    state="AWAITING_CONFIRMATION",
+                    pending_intent=intent,
+                    site_id=prior.site_id if prior else None,
+                ),
             )
             return RouteOutcome(
                 branch="confirm",
@@ -673,7 +654,8 @@ class IntentRouter:
         original_message: str,
         reason: str,
     ) -> RouteOutcome:
-        turns = (prior.turns if prior is not None and prior.branch == "clarify" else 0) + 1
+        """§3.1: IDLE → AWAITING_CLARIFICATION with template-based question (§3.4)."""
+        turns = (prior.turns if prior is not None and prior.state == "AWAITING_CLARIFICATION" else 0) + 1
         if turns > CLARIFICATION_MAX_TURNS:
             self.sessions.clear(owner_id)
             return RouteOutcome(
@@ -682,8 +664,7 @@ class IntentRouter:
                 reason="max_turns",
             )
 
-        # Transcript: prior turns (owner messages + our questions), then the
-        # message that just arrived. The question is appended once we know it.
+        # §3.2: context_history — append owner message, build LLM context.
         exchange = _exchange(prior, original_message)
         if asked_field:
             question = targeted_question(
@@ -692,17 +673,19 @@ class IntentRouter:
         elif intent is not None:
             question = _confirmation_question(intent)
         else:
+            # §3.4: template-based clarification for unsupported/unclear.
             question = _no_intent_question()
         exchange.append({"role": "assistant", "text": question})
 
         self.sessions.set(
             owner_id,
             SessionState(
-                branch="clarify",
+                state="AWAITING_CLARIFICATION",
                 pending_intent=intent,
                 asked_field=asked_field,
                 turns=turns,
                 exchange=exchange,
+                context_history=exchange,
                 site_id=prior.site_id if prior else None,
             ),
         )
@@ -713,32 +696,10 @@ class IntentRouter:
             reason=reason,
         )
 
-    def _handle_escalation_reply(
-        self, owner_id: str, state: SessionState, message_text: str
-    ) -> RouteOutcome:
-        if _is_yes(message_text):
-            original = state.original_message or ""
-            self.log_escalation(owner_id, original)
-            logger.info("escalation request logged for owner %s: %r", owner_id, original[:80])
-            self.sessions.clear(owner_id)
-            return RouteOutcome(
-                branch="escalate",
-                reply_text=_escalation_confirm(),
-                reason="escalation_logged",
-            )
-        if _is_no(message_text):
-            self.sessions.clear(owner_id)
-            return RouteOutcome(
-                branch="escalate",
-                reply_text=_escalation_decline(),
-                reason="escalation_declined",
-            )
-        # Anything else: still waiting for a clear yes/no.
-        return RouteOutcome(
-            branch="escalate",
-            reply_text=_escalation_reply(),
-            reason="escalation_pending",
-        )
+    # NOTE: _handle_escalation_reply removed — §3 replaces escalate with
+    # unclear → AWAITING_CLARIFICATION.  The escalation logging is retained
+    # for developer handoff if needed in the future, but the routing path
+    # no longer has an escalate branch.
 
 
 # ---------------------------------------------------------------------------

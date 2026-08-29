@@ -1,9 +1,12 @@
-"""A4 routing: every parsed intent goes to exactly one of confirm /
-clarify / escalate, and the loops (clarification with context, escalation
-with a logged request) behave end to end.
+"""A4 routing: state machine transitions per PRODUCTION_SPEC_DETAILED.md §3.
+
+Every parsed intent goes to exactly one of:
+- confirm (AWAITING_CONFIRMATION): destructive/high-impact action → YES/NO.
+- clarify (AWAITING_CLARIFICATION): low confidence, missing fields, ambiguous.
+- unclear → AWAITING_CLARIFICATION: unsupported/unclear intent.
 
 The parser is scripted (like test_intent.py's FakeLLM): the router under
-test is real. Escalation logging is tested against a real SQLite store.
+test is real.
 """
 
 import asyncio
@@ -131,7 +134,7 @@ def test_high_confidence_complete_job_goes_to_confirm():
 
     assert outcome.reply_text == compose_confirmation(intent)
     state = router.sessions.get(OWNER)
-    assert state is not None and state.branch == "confirm"
+    assert state is not None and state.state == "AWAITING_CONFIRMATION"
     assert state.pending_intent == intent
     # Integration Phase: the intent was STAGED at Track B before asking.
     assert trackb.calls == [(intent, None)]
@@ -168,7 +171,7 @@ def test_missing_title_asks_one_targeted_question():
     assert outcome.reply_text == "What's the job title?"
     assert outcome.asked_field == "title"
     state = router.sessions.get(OWNER)
-    assert state is not None and state.branch == "clarify"
+    assert state is not None and state.state == "AWAITING_CLARIFICATION"
     assert state.asked_field == "title"
 
 
@@ -247,7 +250,7 @@ def test_clarification_reenters_parse_with_context_and_resolves():
     assert "What's the job title?" in ctx
     # Loop closed: the intent is now held for confirmation (A5).
     state = router.sessions.get(OWNER)
-    assert state is not None and state.branch == "confirm"
+    assert state is not None and state.state == "AWAITING_CONFIRMATION"
     assert state.pending_intent["fields"]["title"] == "Cashier"
 
 
@@ -268,97 +271,42 @@ def test_clarification_loop_caps_at_max_turns():
     assert router.sessions.get(OWNER) is None
 
 
-def test_mid_clarification_message_that_is_unsupported_escalates():
+def test_mid_clarification_message_that_is_unsupported_clarifies():
+    """§3: unsupported → unclear → AWAITING_CLARIFICATION (not escalate)."""
     first = parse_intent(make_intent("create", "job", {"description": "cash handling"}, 0.9))
     parser = ScriptedParser(first, IntentParseResult(status="unsupported", confidence=0.0))
     router = make_router(parser)
 
     assert handle(router, "post a job").branch == "clarify"
     outcome = handle(router, "actually, redesign my whole site")
-    assert outcome.branch == "escalate"
-    assert outcome.reply_text == translate("escalation_reply")
+    assert outcome.branch == "clarify"  # unsupported → clarify (unclear)
+    state = router.sessions.get(OWNER)
+    assert state is not None and state.state == "AWAITING_CLARIFICATION"
 
 
-# ---------------------------------------------------------------- escalate
+# ---------------------------------------------------------------- unclear
 
-
-def test_unsupported_sends_escalation_message():
+def test_unsupported_sends_clarification_message():
+    """§3: unsupported → AWAITING_CLARIFICATION with template question (§3.4)."""
     router = make_router(ScriptedParser(IntentParseResult(status="unsupported")))
     outcome = handle(router, "redesign my homepage")
-    assert outcome.branch == "escalate"
-    assert outcome.reply_text == translate("escalation_reply")
+    assert outcome.branch == "clarify"
+    assert "rephrase" in outcome.reply_text.lower() or "understand" in outcome.reply_text.lower()
     state = router.sessions.get(OWNER)
-    assert state is not None and state.branch == "escalate"
-    assert state.original_message == "redesign my homepage"
+    assert state is not None and state.state == "AWAITING_CLARIFICATION"
 
 
-def test_escalation_yes_logs_request_to_store(tmp_path):
-    db = tmp_path / "inbound.db"
-    store.init_db(db)
-    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
+def test_unsupported_rephrase_resolves_to_action():
+    """Owner rephrases after unclear → clarification loop resolves."""
+    intent = make_intent("create", "job", {"title": "Barista", "description": "mornings"}, 0.9)
+    parser = ScriptedParser(
+        IntentParseResult(status="unsupported"),
+        parse_intent(intent),
+    )
+    router = make_router(parser)
 
-    assert handle(router, "add a new page").branch == "escalate"
-    outcome = handle(router, "yes please")
-    assert outcome.branch == "escalate"
-    assert outcome.reply_text == translate("escalation_confirm")
-    assert outcome.reason == "escalation_logged"
-
-    rows = store.list_escalation_requests(db)
-    assert len(rows) == 1
-    assert rows[0]["owner_phone"] == OWNER
-    assert rows[0]["original_message"] == "add a new page"
-    assert rows[0]["status"] == "new"
-    # Session cleared after logging.
-    assert router.sessions.get(OWNER) is None
-
-
-def test_escalation_no_clears_state_without_logging(tmp_path):
-    db = tmp_path / "inbound.db"
-    store.init_db(db)
-    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
-
-    handle(router, "add a new page")
-    outcome = handle(router, "no thanks")
-    assert outcome.branch == "escalate"
-    assert outcome.reply_text == translate("escalation_decline")
-    assert store.count_escalation_requests(db) == 0
-    assert router.sessions.get(OWNER) is None
-
-
-def test_escalation_non_answer_repeats_the_offer(tmp_path):
-    db = tmp_path / "inbound.db"
-    store.init_db(db)
-    router = make_router(ScriptedParser(IntentParseResult(status="unsupported")), db=db)
-
-    handle(router, "add a new page")
-    outcome = handle(router, "what would it cost?")
-    assert outcome.branch == "escalate"
-    assert outcome.reply_text == translate("escalation_reply")  # still awaiting yes/no
-    assert outcome.reason == "escalation_pending"
-    assert store.count_escalation_requests(db) == 0
-
-    # ...and a later "yes" still works.
-    outcome = handle(router, "yeah, do it")
-    assert outcome.reason == "escalation_logged"
-    assert store.count_escalation_requests(db) == 1
-
-
-def test_escalation_is_per_owner(tmp_path):
-    """Sessions are keyed by owner: another owner starts fresh."""
-    db = tmp_path / "inbound.db"
-    store.init_db(db)
-    unsupported = IntentParseResult(status="unsupported")
-    router = make_router(ScriptedParser(unsupported, unsupported), db=db)
-
-    handle(router, "add a new page")  # OWNER now mid-escalation
-
-    # A different owner's first message parses fresh (scripted result is
-    # the same sentinel, so they land in escalate too — but with their own
-    # original_message and no cross-talk).
-    other = "15559876543"
-    outcome = asyncio.run(router.handle_message(other, "redesign my site"))
-    assert outcome.branch == "escalate"
-    state = router.sessions.get(other)
-    assert state.original_message == "redesign my site"
-    # OWNER's stored message is untouched.
-    assert router.sessions.get(OWNER).original_message == "add a new page"
+    assert handle(router, "redesign my homepage").branch == "clarify"
+    outcome = handle(router, "actually, post a job for a barista")
+    assert outcome.branch == "confirm"
+    assert outcome.intent is not None
+    assert outcome.intent["fields"]["title"] == "Barista"
