@@ -142,11 +142,28 @@
 - Track B code unchanged
 - Onboarding flow unchanged (operates as side channel outside state machine)
 
-## 8. Recommended next step
+## 8. Final build status
 
-**Begin Phase 4 (Voice pipeline).** Implement §4:
-1. Implement TranscriptionProvider interface with proxy confidence calculation
-2. Add mandatory echo-back step (§4.1.3) — always echo transcript before acting
-3. Add low-confidence caveat prefix (§4.1.4)
-4. Wire voice notes through pipeline → state machine (source="voice")
-5. Test with Nigerian-accented/Pidgin samples per §4.2
+**All 8 phases implemented. 488 tests passing, 11 skipped.**
+
+### Per-phase test counts
+- Phase 1 (Data model): 33 new tests
+- Phase 2 (Reliability): 32 new tests
+- Phase 3 (State machine): 29 new tests
+- Phase 4 (Voice pipeline): 18 new tests
+- Phase 5 (WhatsApp): 10 new tests
+- Phase 6 (Infrastructure): 17 new tests
+- Phase 7 (Onboarding): 9 new tests
+- Phase 8 (Owner features): 27 new tests
+- Pre-existing tests: 314 (unaffected)
+
+### Known untested areas (require real infrastructure)
+1. Voice transcription accuracy on Nigerian Pidgin/Yoruba/Igbo/Hausa (§4.2)
+2. Live WordPress site onboarding runbook (§8)
+3. Railway deployment end-to-end
+4. Real WhatsApp Business API delivery
+5. ENCRYPTION_KEY production setup (§7.2)
+
+### Recommended next step
+
+Execute the onboarding runbook (§8) on a real WordPress test site with a real WhatsApp Business API phone number to validate the full production flow end-to-end.

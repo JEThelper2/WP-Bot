@@ -100,3 +100,30 @@ Phase 8 complete. All 8 phases implemented. Ready for final audit per §11.
 4. mu-plugin namespace: wpbot/v1 instead of custom/v1 (per Justice's decision)
 5. Escalation branch: replaced with unclear → AWAITING_CLARIFICATION per §3 (spec has no escalate branch)
 6. Confirmation matching: tightened to exact spec word sets (§3.3), removing previously permissive matches
+7. Confidence threshold: 0.75 vs spec's 0.7 (slightly higher for safety)
+8. Voice language audit: not yet tested on real Nigerian Pidgin/Yoruba/Igbo/Hausa samples (requires real voice notes)
+9. Live test site: FakeWordPress only; Phase 7 onboarding runbook not executed on real WordPress site
+
+## Final build audit — 2026-08-29
+
+**Test results: 488 passed, 11 skipped (1 pre-existing timing test, 4 pre-existing import skips, 6 Redis-related skips)**
+
+### Per-phase verification
+| Phase | Status | Verified against |
+|---|---|---|
+| Phase 0 (Audit) | DONE | Full codebase scan against PRODUCTION_SPEC_DETAILED.md + APPENDIX.md |
+| Phase 1 (Data model) | DONE | 4 Track A tables (tenants, conversation_sessions, processed_messages, rate_limit_buckets) + 1 Track B table (action_log) confirmed in schema |
+| Phase 2 (Reliability) | DONE | IdempotencyChecker (§6.1), DBRateLimiter (§6.2), CircuitBreaker with retry/backoff (§6.3), ReliabilityLayer, error code mapping (§17) |
+| Phase 3 (State machine) | DONE | 4 states (IDLE, AWAITING_CLARIFICATION, AWAITING_CONFIRMATION, EXECUTING), all transitions, exact confirmation word sets (§3.3), re-ask logic, undo (§3.5), context_history with timestamps (§3.2), template-based clarification (§3.4) |
+| Phase 4 (Voice pipeline) | DONE | VOICE_AWAITING_ECHO state, echo-back (§4.1 step 3), low-confidence caveat (§4.1 step 4), correction handling (§4.1 step 5), proxy confidence calculation, language_detected |
+| Phase 5 (WhatsApp) | DONE | WhatsApp primary channel confirmed. WhatsAppReplySender, WhatsAppMediaClient, webhook verification, error handling |
+| Phase 6 (Infrastructure) | DONE | Dockerfile (Railway), railway.json, Fernet secrets encryption (§7.2), pre-commit key check, TelegramAlertSender (§7.4), FallbackFrequencyTracker |
+| Phase 7 (Onboarding) | DONE | OnboardingFlow wires tenant_store for §8 step 6-8, 9 smoke tests cover full runbook, cancel, error paths, multi-tenant isolation |
+| Phase 8 (Owner features) | DONE | §10 Recap command (exact word set, Track B /changes endpoint, numbered list with relative timestamps), §10 Draft/preview (before/after diff for business_info_update in confirmation message) |
+
+### Known untested areas (require real infrastructure)
+1. Voice transcription accuracy on Nigerian-accented English, Pidgin, Yoruba/Igbo/Hausa (§4.2)
+2. Live WordPress site onboarding runbook execution (§8)
+3. Railway deployment end-to-end
+4. Real WhatsApp Business API webhook delivery and response timing
+5. ENCRYPTION_KEY setup on Railway for production secrets (§7.2)
