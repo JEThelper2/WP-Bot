@@ -1,0 +1,40 @@
+# Multi-stage build for WP-Bot (Track A + Track B)
+# Deploy to Railway via: railway up
+
+FROM python:3.12-slim AS base
+
+# Prevent Python from writing .pyc files and enable unbuffered output
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY shared-contract/ shared-contract/
+COPY track-a/requirements.txt track-a/requirements.txt
+COPY track-b/requirements.txt track-b/requirements.txt
+
+RUN pip install --no-cache-dir -e ./shared-contract \
+    && pip install --no-cache-dir -r track-a/requirements.txt \
+    && pip install --no-cache-dir -r track-b/requirements.txt
+
+# Copy application code
+COPY shared-contract/ shared-contract/
+COPY track-a/ track-a/
+COPY track-b/ track-b/
+
+# Create data directory for SQLite
+RUN mkdir -p /app/data
+
+# Expose ports
+# Track A: 8000, Track B: 8200
+EXPOSE 8000 8200
+
+# Default command: run both tracks
+# Railway overrides this via railway.json
+CMD ["sh", "-c", "uvicorn track_a.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

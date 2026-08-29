@@ -127,9 +127,16 @@ def create_tenant(
     plan: str = "founding",
     status: str = "onboarding",
 ) -> dict[str, Any]:
-    """Insert a new tenant. Returns the created row as a dict."""
+    """Insert a new tenant. Returns the created row as a dict.
+
+    §7.2: wp_app_password_enc is encrypted at rest via encrypt_secret().
+    Pass the PLAINTEXT password — this function encrypts before storing.
+    """
+    from .secrets import encrypt_secret
+
     tenant_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
+    encrypted_pw = encrypt_secret(wp_app_password_enc)
     with _connection(db_path) as conn:
         conn.execute(
             """
@@ -139,7 +146,7 @@ def create_tenant(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (tenant_id, sender_id, business_name, wp_site_url,
-             wp_app_username, wp_app_password_enc, plan, status, now),
+             wp_app_username, encrypted_pw, plan, status, now),
         )
     return get_tenant(db_path, tenant_id)
 
@@ -192,7 +199,14 @@ def update_tenant_credentials(
     wp_app_password_enc: str,
     business_name: str = "",
 ) -> bool:
-    """Update WordPress credentials for a tenant."""
+    """Update WordPress credentials for a tenant.
+
+    §7.2: wp_app_password_enc is encrypted at rest via encrypt_secret().
+    Pass the PLAINTEXT password — this function encrypts before storing.
+    """
+    from .secrets import encrypt_secret
+
+    encrypted_pw = encrypt_secret(wp_app_password_enc)
     with _connection(db_path) as conn:
         cur = conn.execute(
             """
@@ -201,10 +215,23 @@ def update_tenant_credentials(
                 business_name = CASE WHEN ? = '' THEN business_name ELSE ? END
             WHERE id = ?
             """,
-            (wp_site_url, wp_app_username, wp_app_password_enc,
+            (wp_site_url, wp_app_username, encrypted_pw,
              business_name, business_name, tenant_id),
         )
     return cur.rowcount > 0
+
+
+def decrypt_tenant_password(db_path: Path, tenant_id: str) -> str:
+    """§7.2: Decrypt a tenant's WordPress Application Password.
+
+    Called only at the point of making the WP API call — never logged.
+    """
+    from .secrets import decrypt_secret
+
+    tenant = get_tenant(db_path, tenant_id)
+    if tenant is None:
+        return ""
+    return decrypt_secret(tenant.get("wp_app_password_enc", ""))
 
 
 # ---------------------------------------------------------------------------
