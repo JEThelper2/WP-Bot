@@ -261,11 +261,11 @@ def _confirmation_question(intent: dict[str, Any]) -> str:
 class IntentRouter:
     """Decides the branch for a parse result and drives the loops.
 
-    `handle_message` is the entrypoint the webhook will call. It checks
+    `handle_message` is the entrypoint the webhook will call.  It checks
     the owner's session (pending clarification / confirmation /
     escalation), re-enters A3 parsing with conversation context when
     mid-clarification, routes the result, and — when the branch produces
-    a reply — sends it to the owner via the injected sender. A5 adds the
+    a reply — sends it to the owner via the injected sender.  A5 adds the
     confirmation exchange: a YES submits the pending intent to Track B
     and replies per the result; a NO cancels without any write call.
 
@@ -285,6 +285,7 @@ class IntentRouter:
         trackb: TrackBClient | Any = None,
         onboarding: Any = None,
         active_sites: ActiveSiteStore | None = None,
+        reliability: Any = None,
     ) -> None:
         self.parser = parser or IntentParser()
         self.sessions = sessions or SessionStore()
@@ -299,6 +300,8 @@ class IntentRouter:
         # parsing so a URL or application password is never parsed as a
         # content request.
         self.onboarding = onboarding
+        # §6: Reliability layer for circuit breaker on Track B calls.
+        self.reliability = reliability  # ReliabilityLayer or None (tests)
 
     async def handle_message(self, owner_id: str, message_text: str) -> RouteOutcome:
         """Route one owner message to exactly one branch; send any reply."""
@@ -368,6 +371,27 @@ class IntentRouter:
             await self.sender.send(owner_id, outcome.reply_text)
         return outcome
 
+    async def _trackb_call(self, owner_id: str, coro_fn: Any) -> Any:
+        """Execute a Track B call with circuit breaker (§6.3).
+
+        When the reliability layer is available, wraps the call with retry
+        + backoff + tenant status management.  On final failure, raises
+        CircuitBreakerError with the classified error code.
+
+        Falls back to direct call when reliability is not wired (tests).
+        """
+        if self.reliability is None:
+            return await coro_fn()
+        # Resolve tenant_id from owner_id for the circuit breaker.
+        from .tenant_store import get_tenant_by_sender
+
+        tenant = get_tenant_by_sender(self.reliability.db_path, owner_id)
+        if tenant is None:
+            # No tenant record — legacy mode, no circuit breaker.
+            return await coro_fn()
+        breaker = self.reliability.circuit_breaker(tenant["id"])
+        return await breaker.call(coro_fn)
+
     # -- confirmation exchange (A5) ---------------------------------------
 
     async def _handle_confirmation_reply(
@@ -414,19 +438,23 @@ class IntentRouter:
         intent = outcome.intent
         assert intent is not None
         try:
-            result = await retry_with_backoff(
+            result = await self._trackb_call(
+                owner_id,
                 lambda: self.trackb.submit_intent(intent),
-                max_attempts=3,
-                base_delay=0.5,
-                max_delay=3.0,
-                operation_name=f"stage_pending(owner={owner_id})",
             )
-        except Exception as exc:  # transport or contract violation
+        except Exception as exc:  # transport, contract violation, or circuit breaker
             logger.warning("staging failed for owner %s: %s", owner_id, exc)
             self.sessions.clear(owner_id)
+            # §6.3: map to owner-facing error message if circuit breaker tripped
+            from .reliability import CircuitBreakerError, owner_message_for_error
+
+            if isinstance(exc, CircuitBreakerError):
+                reply = exc.owner_message
+            else:
+                reply = compose_error(None)
             return RouteOutcome(
                 branch="confirm",
-                reply_text=compose_error(None),
+                reply_text=reply,
                 reason="stage_failed",
             )
 
@@ -459,12 +487,9 @@ class IntentRouter:
     async def _discard_pending(self, owner_id: str, intent: dict[str, Any]) -> None:
         """Relay the NO to Track B so the staged pending is discarded."""
         try:
-            await retry_with_backoff(
+            await self._trackb_call(
+                owner_id,
                 lambda: self.trackb.submit_intent(intent, decision="no"),
-                max_attempts=2,
-                base_delay=0.5,
-                max_delay=2.0,
-                operation_name=f"discard_pending(owner={owner_id})",
             )
         except Exception as exc:
             # The owner's intent is cleared locally regardless; Track B's
@@ -474,18 +499,21 @@ class IntentRouter:
     async def _handle_undo(self, owner_id: str, *, site_id: str | None = None) -> RouteOutcome:
         """Reply UNDO: reverse the owner's most recent change via Track B."""
         try:
-            result = await retry_with_backoff(
+            result = await self._trackb_call(
+                owner_id,
                 lambda: self.trackb.undo(owner_id, site_id=site_id),
-                max_attempts=3,
-                base_delay=0.5,
-                max_delay=3.0,
-                operation_name=f"undo(owner={owner_id})",
             )
         except Exception as exc:
             logger.warning("undo call failed for owner %s: %s", owner_id, exc)
+            from .reliability import CircuitBreakerError
+
+            if isinstance(exc, CircuitBreakerError):
+                reply = exc.owner_message
+            else:
+                reply = compose_undo_error(None)
             return RouteOutcome(
                 branch="undo",
-                reply_text=compose_undo_error(None),
+                reply_text=reply,
                 reason="undo_error",
             )
         if result.get("status") == "success":
@@ -503,12 +531,9 @@ class IntentRouter:
     async def _submit_pending(self, owner_id: str, intent: dict[str, Any]) -> RouteOutcome:
         """YES: resolve the staged confirmation and reply per the result."""
         try:
-            result = await retry_with_backoff(
+            result = await self._trackb_call(
+                owner_id,
                 lambda: self.trackb.submit_intent(intent, decision="yes"),
-                max_attempts=3,
-                base_delay=0.5,
-                max_delay=3.0,
-                operation_name=f"submit_pending(owner={owner_id})",
             )
         except TrackBError as exc:
             logger.warning("Track B contract violation for owner %s: %s", owner_id, exc)
@@ -517,11 +542,17 @@ class IntentRouter:
                 reply_text=compose_error(None),
                 reason="submit_error",
             )
-        except Exception as exc:  # transport failure
+        except Exception as exc:  # transport failure or circuit breaker
             logger.warning("Track B submit failed for owner %s: %s", owner_id, exc)
+            from .reliability import CircuitBreakerError
+
+            if isinstance(exc, CircuitBreakerError):
+                reply = exc.owner_message
+            else:
+                reply = compose_error(None)
             return RouteOutcome(
                 branch="confirm",
-                reply_text=compose_error(None),
+                reply_text=reply,
                 reason="submit_error",
             )
 
