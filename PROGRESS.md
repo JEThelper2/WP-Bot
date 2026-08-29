@@ -14,7 +14,65 @@ Last updated: 2026-08-29
 - Phase 8 (Owner-facing features): NOT STARTED
 
 ## Currently in progress
-Phase 3 complete. Ready for Phase 4 (Voice pipeline: §4 transcription, echo-back, proxy confidence).
+Phase 3 complete and audited. Ready for Phase 4 (Voice pipeline: §4 transcription, echo-back, proxy confidence).
+
+## Phase 3 audit — §3 compliance checklist
+
+### §3.1 States (4 states)
+- ✅ IDLE: no session stored → next message parsed fresh
+- ✅ AWAITING_CLARIFICATION: session.state = "AWAITING_CLARIFICATION", exchange populated
+- ✅ AWAITING_CONFIRMATION: session.state = "AWAITING_CONFIRMATION", pending_intent set
+- ✅ EXECUTING: transient — submit_pending executes inline, clears session on completion
+
+### §3.1 Transitions
+- ✅ IDLE → AWAITING_CLARIFICATION: low confidence (< 0.75), missing required field, or unsupported/unclear
+- ✅ IDLE → AWAITING_CONFIRMATION: destructive action (delete, business_info update) with high confidence
+- ✅ IDLE → IDLE (non-destructive): create, non-business_info update skip confirmation, execute immediately
+- ✅ AWAITING_CLARIFICATION → AWAITING_CONFIRMATION: owner resolves ambiguity (re-parse with context)
+- ✅ AWAITING_CLARIFICATION → IDLE: max clarification turns (3) exceeded → "still unsure" message
+- ✅ AWAITING_CONFIRMATION → EXECUTING: owner replies affirmative
+- ✅ AWAITING_CONFIRMATION → IDLE: owner replies negative → cancel, discard staged intent
+- ✅ EXECUTING → IDLE: action completes (success or failure), session cleared
+- ✅ Any state → IDLE: session expiry (15 min TTL via SessionStore)
+
+### §3.2 Context history
+- ✅ Last 6 turns stored (capped via turns[-6:])
+- ✅ Each entry has role, text, and at (ISO timestamp)
+- ✅ Formatted and passed to parser as context on clarification re-entry
+- ✅ Fresh message resets expires_at = now + 15 minutes
+
+### §3.3 Confirmation matching
+- ✅ Affirmative: {yes, yeah, yep, confirm, ok, okay, go ahead, do it} — exact set, case-insensitive
+- ✅ Negative: {no, nope, cancel, stop, dont, don't} — exact set, case-insensitive
+- ✅ Ambiguous (not yes/no) → re-ask once ("Sorry, should I go ahead? Reply yes or no.")
+- ✅ Second ambiguous reply → cancel + return to IDLE ("Okay, the request has been cancelled.")
+- ✅ Re-ask count tracked via session.re_ask_count
+
+### §3.4 Clarification templates
+- ✅ Missing entity: targeted_question() from _FIELD_QUESTION_KEYS
+- ✅ Missing field: field-specific question (e.g. "What's the job title?")
+- ✅ Low confidence with complete intent: confirm_low_confidence summary
+- ✅ Unsupported/unclear: no_intent_question template ("Sorry — I couldn't quite understand...")
+- ✅ Max turns exceeded: still_unsure template
+
+### §3.5 Undo
+- ✅ Undo matching: {undo, undo that, undo last change, revert} — exact set, case-insensitive
+- ✅ Undo only when no confirmation pending (state is None)
+- ✅ Track B undo() called with owner_id and optional site_id
+- ✅ Undo result relayed as completion or error message
+
+### §3 Edge cases
+- ✅ Empty message → low confidence → clarification
+- ✅ Session expiry: lazy eviction on get(), TTL-based
+- ✅ Pending intent with no state → error reply + session clear
+- ✅ Duplicate webhook delivery → idempotency (§6.1, tested in Phase 2)
+- ✅ Rate limiting → drop message (§6.2, tested in Phase 2)
+
+### Known deviations from §3 spec
+1. **page_content_update**: Not yet implemented (out of scope for Phase 3, flagged for Phase 5+)
+2. **Confirmation staging**: Intent staged at Track B before confirmation prompt (Integration Phase design). Spec doesn't specify staging, but this prevents stale-intent writes.
+3. **Escalation removed**: Spec has no escalate branch. Replaced with unclear → AWAITING_CLARIFICATION. Escalation logging retained for potential future developer handoff.
+4. **Confidence threshold**: 0.75 (spec says < 0.7 triggers clarification — our threshold is slightly higher for safety)
 
 ## Completed this build (append-only log, do not delete old entries)
 - [2026-08-29] Pre-spec work: fixed admin.py NameError (_escap/_status_badge), lazy app init, Telegram webhook auth, RateLimiter thread safety, SQLite connection leaks, N+1 query in list_sites, count_failed changelog logging, routing escalation bug, has_edit_permissions fix, stale test assertions. 314 tests pass. Commit: 8a50535.
