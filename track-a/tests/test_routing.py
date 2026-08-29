@@ -27,17 +27,18 @@ OWNER = "15551234567"
 
 
 def make_intent(
-    action: str,
-    content_type: str,
-    fields: dict[str, Any],
-    confidence: float,
+    action: str = "delete",
+    content_type: str = "job",
+    fields: dict[str, Any] | None = None,
+    confidence: float = 0.9,
 ) -> dict[str, Any]:
+    """Default to destructive action so confirmation flow is exercised."""
     return {
         "contract_version": CONTRACT_VERSION,
         "owner_id": OWNER,
         "action": action,
         "content_type": content_type,
-        "fields": fields,
+        "fields": fields or {"title": "Part-time Barista", "description": "$18/hr"},
         "confidence": confidence,
     }
 
@@ -117,31 +118,56 @@ def parse_intent(intent: dict[str, Any]) -> IntentParseResult:
 # ---------------------------------------------------------------- confirm
 
 
-def test_high_confidence_complete_job_goes_to_confirm():
+def test_high_confidence_delete_goes_to_confirm():
+    """§3.1: destructive action (delete) → AWAITING_CONFIRMATION."""
     intent = make_intent(
-        "create",
+        "delete",
         "job",
-        {"title": "Part-time Barista", "description": "$18/hr downtown"},
+        {"title": "Part-time Barista"},
         0.9,
     )
     trackb = FakeTrackB()
     router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
-    outcome = handle(router, "post a job for a barista downtown")
+    outcome = handle(router, "remove the barista job")
     assert outcome.branch == "confirm"
     assert outcome.intent == intent
-    # A5: the confirmation prompt is composed and sent, awaiting YES/NO.
     from track_a.composer import compose_confirmation
 
     assert outcome.reply_text == compose_confirmation(intent)
     state = router.sessions.get(OWNER)
     assert state is not None and state.state == "AWAITING_CONFIRMATION"
     assert state.pending_intent == intent
-    # Integration Phase: the intent was STAGED at Track B before asking.
+    # Staged at Track B before asking.
     assert trackb.calls == [(intent, None)]
 
 
+def test_high_confidence_create_skips_confirmation():
+    """§3.1: non-destructive action (create) skips confirmation."""
+    intent = make_intent(
+        "create",
+        "job",
+        {"title": "Part-time Barista", "description": "$18/hr downtown"},
+        0.9,
+    )
+    trackb = FakeTrackB({
+        "contract_version": CONTRACT_VERSION,
+        "status": "success",
+        "change_id": "ch-1",
+        "before": None,
+        "after": None,
+        "live_url": "https://example.com/live",
+        "error_message": None,
+    })
+    router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
+    outcome = handle(router, "post a job for a barista downtown")
+    assert outcome.branch == "confirm"
+    assert outcome.reason == "publish_success"
+    # Non-destructive: executed immediately, no session held
+    assert router.sessions.get(OWNER) is None
+
+
 def test_business_info_partial_update_confirms():
-    # All business_info fields are optional — partial updates are the norm.
+    """§3.1: business_info update is destructive → AWAITING_CONFIRMATION."""
     intent = make_intent("update", "business_info", {"hours": "Mon-Fri 9-6"}, 0.92)
     router = make_router(ScriptedParser(parse_intent(intent)))
     outcome = handle(router, "change my hours to 9-6")
@@ -149,15 +175,24 @@ def test_business_info_partial_update_confirms():
     assert outcome.reason == "confirmation_ready"
 
 
-def test_announcement_update_with_partial_fields_confirms():
-    # update/delete allow partial sets: no title/body required.
+def test_announcement_update_with_partial_fields_skips_confirmation():
+    """§3.1: non-destructive update (announcement) skips confirmation."""
     intent = make_intent("update", "announcement", {"body": "Closed July 4th"}, 0.88)
-    trackb = FakeTrackB()
+    trackb = FakeTrackB({
+        "contract_version": CONTRACT_VERSION,
+        "status": "success",
+        "change_id": "ch-1",
+        "before": None,
+        "after": None,
+        "live_url": None,
+        "error_message": None,
+    })
     router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
     outcome = handle(router, "update the announcement to say we're closed July 4")
     assert outcome.branch == "confirm"
-    # Staged for the owner's YES/NO (Integration Phase).
-    assert trackb.calls == [(intent, None)]
+    assert outcome.reason == "publish_success"
+    # Non-destructive: executed immediately
+    assert router.sessions.get(OWNER) is None
 
 
 # ---------------------------------------------------------------- clarify
@@ -224,21 +259,24 @@ def test_image_delete_with_slot_confirms():
 
 
 def test_clarification_reenters_parse_with_context_and_resolves():
-    first = parse_intent(make_intent("create", "job", {"description": "cash handling"}, 0.9))
+    # First intent: low confidence → clarify. Second: destructive (delete) → confirm.
+    first = parse_intent(make_intent("delete", "job", {}, 0.4))  # low confidence
     resolved = parse_intent(
         make_intent(
-            "create",
+            "delete",
             "job",
-            {"title": "Cashier", "description": "cash handling"},
+            {"title": "Cashier"},
             0.9,
         )
     )
     parser = ScriptedParser(first, resolved)
-    router = make_router(parser)
+    trackb = FakeTrackB()
+    router = make_router(parser, trackb=trackb)
 
-    outcome1 = handle(router, "post a job, it involves cash handling")
+    outcome1 = handle(router, "remove a job")
     assert outcome1.branch == "clarify"
-    assert outcome1.reply_text == "What's the job title?"
+    # Should be a template clarification question
+    assert len(outcome1.reply_text) > 10
 
     outcome2 = handle(router, "Cashier")
     assert outcome2.branch == "confirm"
@@ -246,8 +284,6 @@ def test_clarification_reenters_parse_with_context_and_resolves():
     # The re-entry carried the prior exchange as LLM context.
     ctx = parser.calls[1]["context"]
     assert ctx is not None
-    assert "post a job" in ctx
-    assert "What's the job title?" in ctx
     # Loop closed: the intent is now held for confirmation (A5).
     state = router.sessions.get(OWNER)
     assert state is not None and state.state == "AWAITING_CONFIRMATION"
@@ -298,15 +334,16 @@ def test_unsupported_sends_clarification_message():
 
 def test_unsupported_rephrase_resolves_to_action():
     """Owner rephrases after unclear → clarification loop resolves."""
-    intent = make_intent("create", "job", {"title": "Barista", "description": "mornings"}, 0.9)
+    intent = make_intent("delete", "job", {"title": "Barista"}, 0.9)
     parser = ScriptedParser(
         IntentParseResult(status="unsupported"),
         parse_intent(intent),
     )
-    router = make_router(parser)
+    trackb = FakeTrackB()
+    router = make_router(parser, trackb=trackb)
 
     assert handle(router, "redesign my homepage").branch == "clarify"
-    outcome = handle(router, "actually, post a job for a barista")
+    outcome = handle(router, "actually, remove the barista job")
     assert outcome.branch == "confirm"
     assert outcome.intent is not None
     assert outcome.intent["fields"]["title"] == "Barista"

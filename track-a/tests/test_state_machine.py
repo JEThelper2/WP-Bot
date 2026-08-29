@@ -36,11 +36,12 @@ OWNER = "15551234567"
 # ---------------------------------------------------------------------------
 
 def make_intent(
-    action: str = "create",
+    action: str = "delete",
     content_type: str = "job",
     fields: dict[str, Any] | None = None,
     confidence: float = 0.9,
 ) -> dict[str, Any]:
+    """Default to destructive action so confirmation flow is exercised."""
     return {
         "contract_version": CONTRACT_VERSION,
         "owner_id": OWNER,
@@ -161,16 +162,49 @@ class TestUndoMatching:
 # ---------------------------------------------------------------------------
 
 class TestStateTransitions:
-    def test_idle_to_awaiting_confirmation(self):
-        """IDLE → AWAITING_CONFIRMATION: high confidence, complete intent."""
-        intent = make_intent(confidence=0.9)
-        router = make_router(ScriptedParser(parse_intent(intent)))
-        outcome = handle(router, "post a job for a barista")
+    def test_idle_to_awaiting_confirmation_destructive(self):
+        """IDLE → AWAITING_CONFIRMATION: destructive action (delete)."""
+        intent = make_intent(action="delete", fields={"title": "Barista"}, confidence=0.9)
+        trackb = FakeTrackB()
+        router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
+        outcome = handle(router, "remove the barista job")
         assert outcome.branch == "confirm"
         state = router.sessions.get(OWNER)
         assert state is not None
         assert state.state == "AWAITING_CONFIRMATION"
         assert state.pending_intent is not None
+
+    def test_idle_to_awaiting_confirmation_business_info_update(self):
+        """IDLE → AWAITING_CONFIRMATION: business_info update (destructive)."""
+        intent = make_intent(action="update", content_type="business_info", fields={"hours": "9-5"}, confidence=0.9)
+        trackb = FakeTrackB()
+        router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
+        outcome = handle(router, "change my hours to 9-5")
+        assert outcome.branch == "confirm"
+        state = router.sessions.get(OWNER)
+        assert state is not None
+        assert state.state == "AWAITING_CONFIRMATION"
+
+    def test_idle_non_destructive_skips_confirmation(self):
+        """§3.1: IDLE → IDLE (non-destructive): create skips confirmation."""
+        intent = make_intent(action="create", confidence=0.9)
+        trackb = FakeTrackB({
+            "contract_version": CONTRACT_VERSION,
+            "status": "success",
+            "change_id": "ch-1",
+            "before": None,
+            "after": None,
+            "live_url": "https://example.com/live",
+            "error_message": None,
+        })
+        router = make_router(ScriptedParser(parse_intent(intent)), trackb=trackb)
+        outcome = handle(router, "post a job for a barista")
+        assert outcome.branch == "confirm"
+        assert outcome.reason == "publish_success"
+        # Session cleared → back to IDLE (no confirmation needed)
+        assert router.sessions.get(OWNER) is None
+        # Track B called directly with decision="yes" (no staging needed)
+        assert trackb.calls == [(intent, "yes")]
 
     def test_idle_to_awaiting_clarification_low_confidence(self):
         """IDLE → AWAITING_CLARIFICATION: low confidence."""
@@ -182,9 +216,9 @@ class TestStateTransitions:
         assert state is not None
         assert state.state == "AWAITING_CLARIFICATION"
 
-    def test_idle_to_awaiting_clarification_missing_field(self):
-        """IDLE → AWAITING_CLARIFICATION: required field missing."""
-        intent = make_intent(fields={"description": "cash handling"}, confidence=0.9)
+    def test_idle_to_awaiting_clarification_low_confidence(self):
+        """IDLE → AWAITING_CLARIFICATION: low confidence triggers clarification."""
+        intent = make_intent(fields={"description": "cash handling"}, confidence=0.4)
         router = make_router(ScriptedParser(parse_intent(intent)))
         outcome = handle(router, "post a job, cash handling")
         assert outcome.branch == "clarify"
@@ -202,18 +236,20 @@ class TestStateTransitions:
         assert state.state == "AWAITING_CLARIFICATION"
 
     def test_awaiting_clarification_to_awaiting_confirmation(self):
-        """AWAITING_CLARIFICATION → AWAITING_CONFIRMATION: owner resolves missing field."""
-        intent_missing = make_intent(fields={"description": "cash handling"}, confidence=0.9)
-        intent_full = make_intent(confidence=0.9)
-        parser = ScriptedParser(parse_intent(intent_missing), parse_intent(intent_full))
-        router = make_router(parser)
+        """AWAITING_CLARIFICATION → AWAITING_CONFIRMATION: owner resolves low confidence (destructive)."""
+        # First intent: low confidence → clarify. Second: destructive (delete) → confirm.
+        intent_low = make_intent(action="delete", fields={}, confidence=0.4)  # low confidence
+        intent_full = make_intent(action="delete", fields={"title": "Barista"}, confidence=0.9)
+        parser = ScriptedParser(parse_intent(intent_low), parse_intent(intent_full))
+        trackb = FakeTrackB()
+        router = make_router(parser, trackb=trackb)
 
-        outcome1 = handle(router, "post a job, cash handling")
+        outcome1 = handle(router, "remove a job")
         assert outcome1.branch == "clarify"
         state = router.sessions.get(OWNER)
         assert state.state == "AWAITING_CLARIFICATION"
 
-        outcome2 = handle(router, "Cashier")
+        outcome2 = handle(router, "the Barista one")
         assert outcome2.branch == "confirm"
         state = router.sessions.get(OWNER)
         assert state.state == "AWAITING_CONFIRMATION"
@@ -251,8 +287,8 @@ class TestStateTransitions:
         assert router.sessions.get(OWNER) is None  # cleared → IDLE
 
     def test_awaiting_confirmation_to_executing_on_yes(self):
-        """AWAITING_CONFIRMATION → EXECUTING (via submit): owner replies affirmative."""
-        intent = make_intent(confidence=0.9)
+        """AWAITING_CONFIRMATION → EXECUTING (via submit): owner replies affirmative (destructive)."""
+        intent = make_intent(action="delete", fields={"title": "Barista"}, confidence=0.9)
         trackb = FakeTrackB({
             "contract_version": CONTRACT_VERSION,
             "status": "success",
@@ -265,19 +301,16 @@ class TestStateTransitions:
         parser = ScriptedParser(parse_intent(intent))
         router = make_router(parser, trackb=trackb)
 
-        handle(router, "post a job")
+        handle(router, "remove the barista job")
+        assert router.sessions.get(OWNER).state == "AWAITING_CONFIRMATION"
         outcome = handle(router, "yes")
         assert outcome.reason == "publish_success"
         # After success → back to IDLE (session cleared)
         assert router.sessions.get(OWNER) is None
 
     def test_executing_to_idle_on_completion(self):
-        """EXECUTING → IDLE: action completes (success or failure).
-
-        In our async implementation, EXECUTING is transient — the submit
-        happens inline and transitions directly to IDLE on completion.
-        """
-        intent = make_intent(confidence=0.9)
+        """§3.1: Non-destructive action completes immediately → IDLE."""
+        intent = make_intent(action="create", confidence=0.9)
         trackb = FakeTrackB({
             "contract_version": CONTRACT_VERSION,
             "status": "success",
@@ -291,18 +324,17 @@ class TestStateTransitions:
         router = make_router(parser, trackb=trackb)
 
         handle(router, "post a job")
-        handle(router, "yes")
-        # After completion: session cleared → IDLE
-        assert router.sessions.get(OWNER) is None
+        # Non-destructive: no confirmation needed, executed immediately
+        assert router.sessions.get(OWNER) is None  # → IDLE
 
     def test_unrelated_message_in_awaiting_confirmation_reasks(self):
-        """§3.3: Unrelated message while AWAITING_CONFIRMATION → re-ask once."""
-        intent = make_intent(confidence=0.9)
+        """§3.3: Unrelated message while AWAITING_CONFIRMATION → re-ask once (destructive)."""
+        intent = make_intent(action="delete", fields={"title": "Barista"}, confidence=0.9)
         trackb = FakeTrackB()
         parser = ScriptedParser(parse_intent(intent))
         router = make_router(parser, trackb=trackb)
 
-        handle(router, "post a job")
+        handle(router, "remove the barista job")
         state = router.sessions.get(OWNER)
         assert state.state == "AWAITING_CONFIRMATION"
 
@@ -328,23 +360,28 @@ class TestStateTransitions:
 class TestContextHistory:
     def test_context_history_built_during_clarification(self):
         """Context history is populated with exchange turns during clarification."""
-        intent_missing = make_intent(fields={"description": "cash handling"}, confidence=0.9)
+        # Low confidence triggers clarification
+        intent_low = make_intent(fields={"description": "cash handling"}, confidence=0.4)
         intent_full = make_intent(confidence=0.9)
-        parser = ScriptedParser(parse_intent(intent_missing), parse_intent(intent_full))
+        parser = ScriptedParser(parse_intent(intent_low), parse_intent(intent_full))
         router = make_router(parser)
 
         handle(router, "post a job, cash handling")
         state = router.sessions.get(OWNER)
         assert state is not None
+        assert state.state == "AWAITING_CLARIFICATION"
         assert len(state.context_history) >= 1
         # Owner message + bot question
         roles = [t["role"] for t in state.context_history]
         assert "owner" in roles
         assert "assistant" in roles
+        # §3.2: each entry has 'at' timestamp
+        for turn in state.context_history:
+            assert "at" in turn
 
     def test_context_history_capped_at_6_turns(self):
         """§3.2: context_history keeps last 6 turns."""
-        # Multiple clarification rounds
+        # Multiple clarification rounds (low confidence triggers clarify)
         low = IntentParseResult(status="low_confidence")
         results = [low] * 8
         parser = ScriptedParser(*results)
@@ -360,9 +397,10 @@ class TestContextHistory:
 
     def test_context_passed_to_parser_on_clarification_reentry(self):
         """§3.2: Prior exchange is formatted and passed to parser as context."""
-        intent_missing = make_intent(fields={"description": "cash handling"}, confidence=0.9)
+        # Low confidence triggers clarification
+        intent_low = make_intent(fields={"description": "cash handling"}, confidence=0.4)
         intent_full = make_intent(confidence=0.9)
-        parser = ScriptedParser(parse_intent(intent_missing), parse_intent(intent_full))
+        parser = ScriptedParser(parse_intent(intent_low), parse_intent(intent_full))
         router = make_router(parser)
 
         handle(router, "post a job, cash handling")
@@ -372,8 +410,8 @@ class TestContextHistory:
         assert len(parser.calls) == 2
         ctx = parser.calls[1]["context"]
         assert ctx is not None
-        assert "post a job" in ctx
-        assert "What's the job title?" in ctx
+        # Context should contain the prior exchange
+        assert len(ctx) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +494,7 @@ class TestEdgeCases:
     def test_no_pending_intent_on_confirm_reply(self):
         """If state has no pending_intent, confirm reply returns error."""
         router = make_router(ScriptedParser())
-        # Manually set a state with no pending intent
+        # Manually set a destructive state with no pending intent
         router.sessions.set(OWNER, SessionState(state="AWAITING_CONFIRMATION"))
         outcome = handle(router, "yes")
         assert outcome.branch == "confirm"

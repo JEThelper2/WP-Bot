@@ -21,6 +21,7 @@ import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .composer import (
@@ -183,6 +184,21 @@ def _is_undo(text: str) -> bool:
     }
 
 
+# §3.1: Destructive actions require AWAITING_CONFIRMATION before executing.
+# Non-destructive actions skip confirmation and go straight to execution.
+_DESTRUCTIVE_ACTIONS = frozenset({"delete"})
+_DESTRUCTIVE_CONTENT_TYPES = frozenset({"business_info"})
+
+
+def _is_destructive(intent: dict[str, Any]) -> bool:
+    """§3.1: Does this intent require confirmation before executing?"""
+    action = intent.get("action", "")
+    content_type = intent.get("content_type", "")
+    return action in _DESTRUCTIVE_ACTIONS or (
+        action == "update" and content_type in _DESTRUCTIVE_CONTENT_TYPES
+    )
+
+
 # ---------------------------------------------------------------------------
 # Routing
 # ---------------------------------------------------------------------------
@@ -319,16 +335,13 @@ class IntentRouter:
         )
         parse = await self.parser.parse(message_text, owner_id, context=context)
         outcome = self._route(owner_id, parse, message_text, prior=state)
-        # A confirmation-ready intent is STAGED at Track B before the
-        # confirmation goes out (Integration Phase): the owner's YES/NO then
-        # resolves a real pending confirmation instead of Track A holding
-        # the only copy of the intent.
-        if (
-            outcome.branch == "confirm"
-            and outcome.reason == "confirmation_ready"
-            and outcome.intent is not None
-        ):
-            outcome = await self._stage_pending(owner_id, outcome)
+        if outcome.intent is not None:
+            if outcome.reason == "confirmation_ready":
+                # Destructive action: stage at Track B, then ask for confirmation.
+                outcome = await self._stage_pending(owner_id, outcome)
+            elif outcome.reason == "non_destructive_ready":
+                # §3.1: Non-destructive action: execute immediately, no confirmation.
+                outcome = await self._submit_pending(owner_id, outcome.intent)
         return await self._send(owner_id, outcome)
 
     async def _send(self, owner_id: str, outcome: RouteOutcome) -> RouteOutcome:
@@ -609,22 +622,32 @@ class IntentRouter:
             self.active_sites.set(owner_id, prior.site_id)
         missing = missing_required_fields(intent)
         if parse.confidence >= self.threshold and not missing:
-            # §3.1: IDLE → AWAITING_CONFIRMATION: hold the intent and send
-            # the confirmation prompt (A5) — the owner's YES/NO decides.
-            self.sessions.set(
-                owner_id,
-                SessionState(
-                    state="AWAITING_CONFIRMATION",
-                    pending_intent=intent,
-                    site_id=prior.site_id if prior else None,
-                ),
-            )
-            return RouteOutcome(
-                branch="confirm",
-                intent=intent,
-                reply_text=compose_confirmation(intent),
-                reason="confirmation_ready",
-            )
+            if _is_destructive(intent):
+                # §3.1: IDLE → AWAITING_CONFIRMATION for destructive actions.
+                self.sessions.set(
+                    owner_id,
+                    SessionState(
+                        state="AWAITING_CONFIRMATION",
+                        pending_intent=intent,
+                        site_id=prior.site_id if prior else None,
+                    ),
+                )
+                return RouteOutcome(
+                    branch="confirm",
+                    intent=intent,
+                    reply_text=compose_confirmation(intent),
+                    reason="confirmation_ready",
+                )
+            else:
+                # §3.1: IDLE → IDLE (non-destructive): no confirmation needed.
+                # The intent is complete and safe — execute immediately.
+                # Return the intent for the caller to submit to Track B.
+                return RouteOutcome(
+                    branch="confirm",
+                    intent=intent,
+                    reply_text=compose_confirmation(intent),
+                    reason="non_destructive_ready",
+                )
 
         if missing:
             return self._clarify(
@@ -675,7 +698,11 @@ class IntentRouter:
         else:
             # §3.4: template-based clarification for unsupported/unclear.
             question = _no_intent_question()
-        exchange.append({"role": "assistant", "text": question})
+        exchange.append({
+            "role": "assistant",
+            "text": question,
+            "at": datetime.now(UTC).isoformat(),
+        })
 
         self.sessions.set(
             owner_id,
@@ -708,13 +735,18 @@ class IntentRouter:
 
 
 def _exchange(prior: SessionState | None, latest_owner_message: str | None) -> list[dict[str, str]]:
-    """Return the bounded transcript, optionally appending the new message.
+    """§3.2: Return the bounded transcript, optionally appending the new message.
 
-    Keeps only the last few turns so the LLM context stays short.
+    Each entry has ``role``, ``text``, and ``at`` (ISO timestamp) per spec.
+    Keeps only the last 6 turns so the LLM context stays short.
     """
     turns = list(prior.exchange) if prior is not None else []
     if latest_owner_message:
-        turns.append({"role": "owner", "text": latest_owner_message})
+        turns.append({
+            "role": "owner",
+            "text": latest_owner_message,
+            "at": datetime.now(UTC).isoformat(),
+        })
     return turns[-6:]
 
 

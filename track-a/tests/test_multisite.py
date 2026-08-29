@@ -247,11 +247,12 @@ class FakeTrackBForRouter:
         }
 
 
-def _make_intent(content_type: str = "job", fields: dict | None = None) -> dict:
+def _make_intent(content_type: str = "job", fields: dict | None = None, action: str = "delete") -> dict:
+    """Default to destructive action so confirmation flow is exercised."""
     return {
         "contract_version": CONTRACT_VERSION,
         "owner_id": OWNER_A,
-        "action": "create",
+        "action": action,
         "content_type": content_type,
         "fields": fields or {"title": "Barista", "description": "$18/hr"},
         "confidence": 0.9,
@@ -306,25 +307,27 @@ class TestSiteIdInRouting:
 
     def test_site_id_persists_across_clarification(self):
         """site_id survives through the clarify state."""
-        intent_no_title = _make_intent(fields={"description": "cash handling"})
+        # Use low confidence to trigger clarification
+        intent_low = _make_intent(fields={"description": "cash handling"}, action="delete")
+        intent_low["confidence"] = 0.4  # below threshold → clarify
         intent_full = _make_intent()
         tb = FakeTrackBForRouter()
         active_sites = ActiveSiteStore()
         active_sites.set(OWNER_A, "site-alpha")
         onb = OnboardingFlow(trackb=FakeTrackBForSwitch([SITE_A]))
-        router = _build_router(ScriptedParser(_parse(intent_no_title), _parse(intent_full)), trackb=tb)
+        router = _build_router(ScriptedParser(_parse(intent_low), _parse(intent_full)), trackb=tb)
         router.onboarding = onb
         router.active_sites = active_sites
         router.sessions.set(OWNER_A, SessionState(site_id="site-alpha"))
 
-        # First message: clarify (missing title)
-        outcome1 = asyncio.run(router.handle_message(OWNER_A, "post a job"))
+        # First message: clarify (low confidence)
+        outcome1 = asyncio.run(router.handle_message(OWNER_A, "remove a job"))
         assert outcome1.branch == "clarify"
         state = router.sessions.get(OWNER_A)
         assert state.site_id == "site-alpha"
 
-        # Second message: confirm
-        outcome2 = asyncio.run(router.handle_message(OWNER_A, "Barista"))
+        # Second message: confirm (destructive delete)
+        outcome2 = asyncio.run(router.handle_message(OWNER_A, "the cash handling one"))
         assert outcome2.branch == "confirm"
         assert tb.staged_intents[0].get("site_id") == "site-alpha"
 

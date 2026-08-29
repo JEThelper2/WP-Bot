@@ -26,7 +26,8 @@ from track_a.trackb import TrackBClient, TrackBError
 OWNER = "15551234567"
 
 
-def make_intent(action="create", content_type="job", fields=None, confidence=0.95):
+def make_intent(action="delete", content_type="job", fields=None, confidence=0.95):
+    """Default to a destructive action (delete) so confirmation flow is exercised."""
     return {
         "contract_version": CONTRACT_VERSION,
         "owner_id": OWNER,
