@@ -70,7 +70,7 @@
 | Paystack (§9) | Not started | No payment integration | Out of scope for code audit |
 | Dockerfile / Railway deploy | Not started | No production deployment path | Build in Phase 6 |
 | Operator alerting (§7.4) | Alert callback wired into CircuitBreaker | No Telegram sender connected to alert yet | Build in Phase 6 |
-| `page_content_update` action | Not implemented | Can't edit WP pages via bot | Build in Phase 5+ (WhatsApp migration)
+| `page_content_update` action | **Implemented** (commit 84fee6a) | `page` content type with PageHandler, WordPressClient page API, FakeWordPress pages | Done — update-only, create/delete rejected |
 | `unclear` action type | ✅ Unsupported → AWAITING_CLARIFICATION with template question | Replaces escalation per §3 | Done in Phase 3 |
 
 ## 6. Phase 2 completion details
