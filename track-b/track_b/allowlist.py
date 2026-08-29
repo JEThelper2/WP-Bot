@@ -42,7 +42,7 @@ logger = logging.getLogger("track_b.allowlist")
 
 # Content types the product supports. `image` is v1.5 / optional for the
 # v1 MVP — sites opt in by enabling it in their config.
-CONTENT_TYPES = ("job", "announcement", "business_info", "image")
+CONTENT_TYPES = ("job", "announcement", "business_info", "image", "page")
 
 
 @dataclass(frozen=True)
@@ -96,6 +96,11 @@ PILOT_SITE_CONFIG = SiteConfig(
             enabled=False,  # v1.5 — off for the pilot MVP
             image_slots=("homepage_banner", "logo", "gallery"),
             allowed_fields=("slot", "media_url", "media_base64"),
+        ),
+        "page": ContentTypeMapping(
+            content_type="page",
+            post_type="pages",  # standard WP pages REST base
+            allowed_fields=("title", "content"),
         ),
     },
 )

@@ -237,6 +237,55 @@ class ImageHandler:
         return await client.upload_and_replace_image(slot, media)
 
 
+@dataclass(frozen=True)
+class PageHandler:
+    """Handler for WordPress page content updates (§15.6).
+
+    Pages are standard WP pages (About, Home, etc.) edited via the core
+    'content' field.  Update-only — creating/deleting pages is out of
+    scope for the bot.
+    """
+
+    @property
+    def content_type(self) -> str:
+        return "page"
+
+    @property
+    def required_on_create(self) -> tuple[str, ...]:
+        return ()  # page_content_update is always an update
+
+    @property
+    def field_questions(self) -> dict[str, str]:
+        return {
+            "title": "Which page do you want to update — About, Home, or something else?",
+            "content": "What should the page content say?",
+        }
+
+    async def apply(
+        self,
+        intent: dict[str, Any],
+        client: WordPressClient,
+    ) -> Any:
+        action = intent["action"]
+        fields = intent["fields"]
+
+        if action == "create":
+            raise WordPressError("creating new pages via the bot is not supported yet")
+
+        if action == "delete":
+            raise WordPressError("deleting pages via the bot is not supported yet")
+
+        # update: find page by title, then update content
+        title = fields.get("title")
+        if not title:
+            raise WordPressError("page update requires a title to identify the page")
+        page_id = await client.find_page_by_title(str(title))
+        if page_id is None:
+            raise WordPressError(f"no page titled {title!r} was found")
+
+        return await client.update_page_content(page_id, fields)
+
+
 # ---------------------------------------------------------------------------
 # Register built-in handlers at module load time
 # ---------------------------------------------------------------------------
@@ -245,3 +294,4 @@ register_handler(JobHandler())
 register_handler(AnnouncementHandler())
 register_handler(BusinessInfoHandler())
 register_handler(ImageHandler())
+register_handler(PageHandler())

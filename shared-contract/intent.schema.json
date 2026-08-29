@@ -28,8 +28,8 @@
       "description": "What to do with the content."
     },
     "content_type": {
-      "enum": ["job", "announcement", "business_info", "image"],
-      "description": "What kind of content. job | announcement | business_info are the v1 MVP set. 'image' is introduced in v1.5 (see x-v1-mvp / x-introduced-in annotations below) — the schema validates it for forward compatibility, but Track B is NOT required to support it in the v1 MVP."
+      "enum": ["job", "announcement", "business_info", "image", "page"],
+      "description": "What kind of content. job | announcement | business_info are the v1 MVP set. 'image' is introduced in v1.5. 'page' supports updating existing WordPress page content (About, Home, etc.)."
     },
     "fields": {
       "type": "object",
@@ -129,6 +129,15 @@
             ]
           }
         }
+      }
+    },
+    {
+      "if": {
+        "required": ["content_type"],
+        "properties": { "content_type": { "const": "page" } }
+      },
+      "then": {
+        "properties": { "fields": { "$ref": "#/$defs/page_fields" } }
       }
     }
   ],
@@ -235,6 +244,22 @@
         }
       },
       "description": "Image fields. v1.5 feature — NOT required for the v1 MVP. The schema validates it so both tracks can develop against the final shape."
+    },
+    "page_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page title to update (e.g. 'About', 'Home', 'Contact'). Used to find the page on the WordPress site."
+        },
+        "content": {
+          "type": "string",
+          "description": "New page content (HTML or plain text). The core WordPress 'content' field."
+        }
+      },
+      "description": "Page content update fields. Only update is supported — title identifies the page, content is the new text. At least one field required."
     }
   }
 }

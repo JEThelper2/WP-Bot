@@ -39,6 +39,8 @@ def compose_confirmation(intent: dict[str, Any]) -> str:
         return _compose_business_info(fields)
     if content_type == "image":
         return _compose_image(action, fields)
+    if content_type == "page":
+        return _compose_page(fields)
 
     return translate("compose_generic", action=action, content_type=content_type, confirm=_confirm_change())
 
@@ -172,6 +174,22 @@ def _compose_image(action: str, fields: dict[str, Any]) -> str:
     if action == "delete":
         return translate("compose_image_delete", slot=slot, confirm=confirm)
     return translate("compose_image_replace", slot=slot, confirm=confirm)
+
+
+def _compose_page(fields: dict[str, Any]) -> str:
+    title = str(fields.get("title") or "a page")
+    content = str(fields.get("content") or "").strip()
+    confirm = _confirm_change()
+    if content:
+        # Truncate long content for the confirmation message
+        preview = content[:100] + ("..." if len(content) > 100 else "")
+        return translate(
+            "compose_page_update",
+            title=title,
+            content=preview,
+            confirm=confirm,
+        )
+    return translate("compose_page_update_no_content", title=title, confirm=confirm)
 
 
 def _field_values(fields: dict[str, Any]) -> str:

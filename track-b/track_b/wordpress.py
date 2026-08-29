@@ -218,6 +218,67 @@ class WordPressClient:
                 return int(post["id"])
         return None
 
+    # ------------------------------------------------------------ pages
+
+    async def find_page_by_title(self, title: str) -> int | None:
+        """Resolve a WP page id by exact title match (§15.6)."""
+        resp = await self._request(
+            "GET",
+            f"/wp-json/wp/v2/pages?search={quote(title)}&per_page=50",
+        )
+        wanted = title.strip().lower()
+        for page in resp.json():
+            t = page.get("title", {}).get("raw") or page.get("title", {}).get("rendered")
+            if t and t.strip().lower() == wanted:
+                return int(page["id"])
+        return None
+
+    async def update_page_content(
+        self,
+        page_id: int,
+        fields: dict[str, Any],
+    ) -> ChangeRecord:
+        """Update a WP page's content field (§15.6). Partial update —
+        only the fields present in `fields` are sent."""
+        # Fetch current state for the before snapshot.
+        resp = await self._request(
+            "GET", f"/wp-json/wp/v2/pages/{page_id}", allow_404=True
+        )
+        if resp is None:
+            raise WordPressError(
+                f"page {page_id} not found on {self.base_url}",
+                status_code=404,
+                site_url=self.base_url,
+            )
+        current = resp.json()
+
+        # Build partial payload — only send the fields we're changing.
+        payload: dict[str, Any] = {}
+        if "content" in fields:
+            payload["content"] = fields["content"]
+        if "title" in fields:
+            payload["title"] = fields["title"]
+
+        updated = await self._request(
+            "PUT", f"/wp-json/wp/v2/pages/{page_id}", json=payload
+        )
+        updated = updated.json()
+
+        def _page_state(p: dict) -> dict[str, Any]:
+            return {
+                "id": p.get("id"),
+                "title": (p.get("title") or {}).get("raw"),
+                "content": (p.get("content") or {}).get("raw"),
+                "status": p.get("status"),
+            }
+
+        return ChangeRecord(
+            before=_page_state(current),
+            after=_page_state(updated),
+            post_id=page_id,
+            live_url=updated.get("link"),
+        )
+
     async def _ensure_category(self, content_type: str) -> int:
         """Get-or-create the 'jobs'/'announcements' category; return its id."""
         name = _CONTENT_TYPE_CATEGORY[content_type]

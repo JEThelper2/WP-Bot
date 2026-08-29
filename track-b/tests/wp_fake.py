@@ -40,7 +40,9 @@ class FakeWordPress:
         expected_auth=None,
     ):
         self.posts: dict[int, dict] = {}
+        self.pages: dict[int, dict] = {}
         self.next_id = 1
+        self.next_page_id = 1
         self.categories = {"jobs": 10, "announcements": 11}
         self.option: dict = {}
         self.media: list[dict] = []
@@ -99,7 +101,7 @@ class FakeWordPress:
                 },
             )
         if path == "/wp-json/wp/v2/types":
-            types = {"post": {"rest_base": "posts"}}
+            types = {"post": {"rest_base": "posts"}, "page": {"rest_base": "pages"}}
             if self.has_jobs_cpt:
                 types["jobs"] = {"rest_base": "jobs"}
             return httpx.Response(200, json=types)
@@ -133,6 +135,53 @@ class FakeWordPress:
             }
             self.media.append(attachment)
             return httpx.Response(201, json=attachment)
+
+        # pages CRUD
+        if "/wp-json/wp/v2/pages" in path:
+            segments = [s for s in path.split("/") if s]
+            is_collection = segments[-1] == "pages"
+            if is_collection and method == "GET":
+                search = request.url.params.get("search", "").lower()
+                if search:
+                    matches = [
+                        p for p in self.pages.values()
+                        if search in (p["title"]["raw"] or "").lower()
+                    ]
+                    return httpx.Response(200, json=matches)
+                return httpx.Response(200, json=list(self.pages.values()))
+            if method == "POST":
+                body = json.loads(request.content)
+                page_id = self.next_page_id
+                self.next_page_id += 1
+                page = {
+                    "id": page_id,
+                    "title": {"raw": body.get("title", ""), "rendered": body.get("title", "")},
+                    "content": {"raw": body.get("content", ""), "rendered": body.get("content", "")},
+                    "status": body.get("status", "publish"),
+                    "link": f"{SITE}/?page_id={page_id}",
+                }
+                self.pages[page_id] = page
+                return httpx.Response(201, json=page)
+            # Single page by id
+            page_id = int(segments[-1])
+            page = self.pages.get(page_id)
+            if page is None:
+                return httpx.Response(404, json={"code": "rest_post_invalid_id", "message": "Page not found."})
+            if method == "GET":
+                return httpx.Response(200, json=page)
+            if method == "PUT":
+                body = json.loads(request.content)
+                for key, value in body.items():
+                    if key == "title":
+                        page["title"] = {"raw": value, "rendered": value}
+                    elif key == "content":
+                        page["content"] = {"raw": value, "rendered": value}
+                    else:
+                        page[key] = value
+                return httpx.Response(200, json=page)
+            if method == "DELETE":
+                page["status"] = "trash"
+                return httpx.Response(200, json=page)
 
         # posts / jobs CRUD
         segments = [s for s in path.split("/") if s]

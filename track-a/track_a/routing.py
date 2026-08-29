@@ -84,6 +84,7 @@ _REQUIRED_ON_CREATE_FALLBACK: dict[str, tuple[str, ...]] = {
     "announcement": ("title", "body"),
     "business_info": (),
     "image": ("slot",),
+    "page": (),  # page_content_update is always an update
 }
 
 # Field question translation keys, keyed by "content_type.field".
@@ -101,6 +102,8 @@ _FIELD_QUESTION_KEYS: dict[str, str] = {
     "business_info.hours": "field_business_info_hours",
     "business_info.address": "field_business_info_address",
     "business_info.prices": "field_business_info_prices",
+    "page.title": "field_page_title",
+    "page.content": "field_page_content",
 }
 
 

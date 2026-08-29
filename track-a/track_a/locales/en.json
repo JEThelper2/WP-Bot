@@ -34,6 +34,8 @@
   "field_business_info_hours": "What are the new opening hours?",
   "field_business_info_address": "What's the address?",
   "field_business_info_prices": "What are the new prices?",
+  "field_page_title": "Which page do you want to update — About, Home, or something else?",
+  "field_page_content": "What should the page content say?",
   "field_generic": "Could you tell me the {field}?",
 
   "onboard_step_url": "Let's connect your website so you can update it by WhatsApp. Step 1 — send me your site URL, for example https://mybusiness.com",
@@ -73,6 +75,8 @@
   "compose_image_replace": "Replace your {slot} with the photo you sent. {confirm}",
   "compose_generic": "I'd like to {action} your {content_type}. {confirm}",
   "compose_business_info_update_with_before": "Change your {label} from {old_values} to {new_values}. {confirm}",
+  "compose_page_update": "Update the '{title}' page: {content}. {confirm}",
+  "compose_page_update_no_content": "Update the '{title}' page. {confirm}",
   "recap_header": "Here are your recent changes:",
   "recap_entry": "{index}. {time_ago}: {summary}",
   "recap_empty": "No changes recorded yet. Send a message to update your site.",

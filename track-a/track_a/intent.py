@@ -54,13 +54,13 @@ Reply with EXACTLY ONE JSON object and nothing else. Two shapes:
 
 1. OUT-OF-SCOPE request — site redesign, adding whole new pages, or \
 anything that is not adding/updating/removing a job posting, announcement, \
-business info, or site image:
+business info, site image, or page content:
 {"unsupported": true}
 
 2. SUPPORTED request:
 {
   "action": "create" | "update" | "delete",
-  "content_type": "job" | "announcement" | "business_info" | "image",
+  "content_type": "job" | "announcement" | "business_info" | "image" | "page",
   "fields": { ... },
   "confidence": <number 0.0-1.0>
 }
@@ -74,6 +74,10 @@ create requires title AND body.
 updates are expected ("change my hours to 9-6" -> {"hours": "9-6"}).
 - image: slot ("homepage_banner" | "logo" | "gallery") plus exactly one \
 of media_url or media_base64 for create/update; slot only for delete.
+- page: title (page name, e.g. "About", "Home") and content (the new \
+page content). Only update is supported — use when the owner wants to \
+change the text on an existing page ("update the About page", \
+"change the Home page content", "rewrite the contact page").
 
 Confidence rules — be CONSERVATIVE. The "confidence" field is the number \
 0.0-1.0 YOU return; nothing else computes it. Prefer a LOW confidence \
