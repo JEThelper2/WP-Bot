@@ -1,9 +1,9 @@
-# Build Report — 2026-08-29 (Updated through Phase 1)
+# Build Report — 2026-08-29 (Updated through Phase 2)
 
 ## 1. Phases completed
-- Phase 0 (Audit): **DONE** — full codebase scan against PRODUCTION_SPEC_DETAILED.md and PRODUCTION_SPEC_APPENDIX.md. All 5 flagged decisions resolved by Justice. See §2–§6 of the original Phase 0 report.
-- Phase 1 (Data model): **DONE** — 5 new tables created per §1, 33 new tests, 347 total passing. All existing 314 tests unaffected.
-- Phase 2 (Reliability): NOT STARTED
+- Phase 0 (Audit): **DONE** — full codebase scan against PRODUCTION_SPEC_DETAILED.md and PRODUCTION_SPEC_APPENDIX.md. All 5 flagged decisions resolved by Justice. See §2–§5 of the original Phase 0 report.
+- Phase 1 (Data model): **DONE** — 5 new tables created per §1, 33 new tests, 347 total passing. All existing 314 tests unaffected. Commit: 2a2aacc.
+- Phase 2 (Reliability): **DONE** — reliability layer wired into request pipeline: idempotency (§6.1), DB-backed rate limiting (§6.2), circuit breaker with retry/backoff (§6.3), error code mapping (§17), owner-facing error messages. 32 new tests. Total: 379 passing, 11 skipped. Commit: 2f69812.
 - Phase 3 (Conversational state machine): NOT STARTED
 - Phase 4 (Voice pipeline): NOT STARTED
 - Phase 5 (WhatsApp migration): NOT STARTED
@@ -24,12 +24,12 @@
 | §3 State machine | `IDLE`, `AWAITING_CLARIFICATION`, `AWAITING_CONFIRMATION`, `EXECUTING` | `clarify`, `escalate`, `confirm` branches | **Extend** | Add `unclear` action type (replaces escalation); add IDLE as implicit default |
 | §5 Multi-tenant | `tenants` table with UUID, `sender_id` lookup | Flat `owner_id`/`owner_phone` strings | **Build per spec** | ✅ Done in Phase 1 — `tenant_store.py` with full CRUD |
 | §6.1 Idempotency | `processed_messages` table, unique constraint, checked before AI call | `wam_id UNIQUE` in `inbound_messages` | **Build per spec** | ✅ Done in Phase 1 — `mark_message_processed()` |
-| §6.2 Rate limiting | Fixed-window per-tenant in `rate_limit_buckets` table | In-memory sliding window | **Build per spec** | ✅ Done in Phase 1 — `check_and_increment_rate_limit()` |
-| §6.3 Circuit breaker | Automatic `degraded` status, retry 3x, auto-recovery, operator alert | Basic exception catch-and-reply | **Build per spec** | Phase 2 |
+| §6.2 Rate limiting | Fixed-window per-tenant in `rate_limit_buckets` table | In-memory sliding window | **Build per spec** | ✅ Done in Phase 1, wired in Phase 2 — `DBRateLimiter` |
+| §6.3 Circuit breaker | Automatic `degraded` status, retry 3x, auto-recovery, operator alert | Basic exception catch-and-reply | **Build per spec** | ✅ Done in Phase 2 — `CircuitBreaker` in reliability.py |
 | §1.2 Sessions | `conversation_sessions` table with state, pending_intent, context_history | In-memory `SessionStore` | **Build per spec** | ✅ Done in Phase 1 — `upsert_session()` with TTL expiry |
 | §1.3 Action log | `action_log` with undone_at, source fields | `change_log` without undo tracking | **Build per spec** | ✅ Done in Phase 1 — `InMemoryActionLog` + `SQLiteActionLog` |
 | §14 AI prompts | New prompt with `menu_item_add` schema, 6 few-shot examples | Old prompt with `create\|update\|delete` schema | **Extend** | Add new prompt alongside old; provider-swappable |
-| §17 Error codes | `WP_UNREACHABLE`, `AUTH_FAILED`, `ENTITY_NOT_FOUND`, `PLUGIN_CONFLICT`, `UNKNOWN` | `WordPressError` with `status_code` only | **Build per spec** | New enum; map existing status_code to error codes |
+| §17 Error codes | `WP_UNREACHABLE`, `AUTH_FAILED`, `ENTITY_NOT_FOUND`, `PLUGIN_CONFLICT`, `UNKNOWN` | `WordPressError` with `status_code` only | **Build per spec** | ✅ Done in Phase 2 — `classify_wp_error()` + `owner_message_for_error()` |
 | §8.9 Smoke test | Automated smoke test during onboarding | Manual onboarding flow | **Build per spec** | New automation, not replacing existing flow |
 
 ## 3. Items flagged, not resolved
@@ -60,62 +60,55 @@
 |---|---|---|---|
 | Voice transcription (§4.2) | Synthetic English only | Nigerian-accented/Pidgin/Yoruba accuracy unknown | Mandatory echo-back step (§4.1.3) is the mitigation |
 | WhatsApp Business API | Code paths exist, no real Meta credentials | Cannot verify real delivery | Telegram adapter covers conversation flow; WhatsApp-specific in Phase 5 |
-| Circuit breaker (§6.3) | Not implemented | WP failures not handled gracefully | Build in Phase 2 |
-| Multi-tenant isolation (§5) | ✅ Tables created | Not yet wired into routing pipeline | Wire in Phase 3 (state machine) |
-| Rate limiting (§6.2) | ✅ DB-backed table created | Not yet wired into webhook handler | Wire in Phase 2 |
-| Webhook idempotency (§6.1) | ✅ `processed_messages` table created | Not yet wired into webhook handler | Wire in Phase 2 |
+| Multi-tenant isolation (§5) | ✅ Tables created, wired into webhook | Routing pipeline uses owner_id, not tenant_id yet | Wire in Phase 3 (state machine) |
+| Rate limiting (§6.2) | ✅ DB-backed, wired into webhook | Falls back to in-memory for pre-onboarding tenants | Acceptable for pilot |
+| Webhook idempotency (§6.1) | ✅ `processed_messages` table, wired into webhook | Falls back to `wam_id` uniqueness for pre-onboarding tenants | Acceptable for pilot |
+| Circuit breaker (§6.3) | ✅ Implemented and wired into routing.py | Tested with synthetic WP errors | Needs live failure scenario test in Phase 7 |
 | Conversation sessions (§1.2) | ✅ Table created | Not yet wired into router | Wire in Phase 3 (state machine) |
 | Action log (§1.3) | ✅ Table + InMemory/SQLite implementations | Not yet wired into Track B apply flow | Wire in Phase 3 |
 | Paystack (§9) | Not started | No payment integration | Out of scope for code audit |
 | Dockerfile / Railway deploy | Not started | No production deployment path | Build in Phase 6 |
-| Operator alerting (§7.4) | Not started | No degraded/fallback alerts | Build in Phase 6 |
-| `page_content_update` action | Not implemented | Can't edit WP pages via bot | Build in Phase 1 (contract) + Phase 3 (state machine) |
+| Operator alerting (§7.4) | Alert callback wired into CircuitBreaker | No Telegram sender connected to alert yet | Build in Phase 6 |
+| `page_content_update` action | Not implemented | Can't edit WP pages via bot | Build in Phase 3 (state machine) |
 | `unclear` action type | Not implemented (currently `unsupported` → escalation) | Spec wants `unclear` action, not escalation | Build in Phase 3 |
 
-## 6. Phase 1 completion details
+## 6. Phase 2 completion details
 
-### Tables created
+### Components implemented
 
-| Table | Spec § | Track | File | Purpose |
-|---|---|---|---|---|
-| `tenants` | §1.1 | A | `track-a/track_a/tenant_store.py` | Multi-tenant registry, sender_id → tenant lookup |
-| `conversation_sessions` | §1.2 | A | `track-a/track_a/tenant_store.py` | Per-tenant conversation state with TTL expiry |
-| `processed_messages` | §1.4 | A | `track-a/track_a/tenant_store.py` | Webhook idempotency (checked before AI call) |
-| `rate_limit_buckets` | §1.5 | A | `track-a/track_a/tenant_store.py` | Fixed-window per-tenant rate limiting |
-| `action_log` | §1.3 | B | `track-b/track_b/action_log.py` | Change log with undo support (undone_at, source) |
+| Component | Spec section | Implementation | File |
+|---|---|---|---|
+| Idempotency | §6.1 | `IdempotencyChecker` wraps `processed_messages` table | `track-a/track_a/reliability.py` |
+| Rate limiting | §6.2 | `DBRateLimiter` wraps `rate_limit_buckets` table (30 msg/hr/tenant) | `track-a/track_a/reliability.py` |
+| Circuit breaker | §6.3 | `CircuitBreaker` wraps Track B calls (3x retry, 1s/3s/9s backoff) | `track-a/track_a/reliability.py` |
+| Error mapping | §17 | `classify_wp_error()` maps WP REST errors to internal codes | `track-a/track_a/reliability.py` |
+| Owner messages | §6.3 | `owner_message_for_error()` returns plain-language messages | `track-a/track_a/reliability.py` |
+| Operator alerts | §7.4 | Alert callback on transition to degraded (not repeated failures) | `track-a/track_a/reliability.py` |
 
-### Key functions (ready to wire in Phase 2–3)
+### Wiring
 
-**Track A (`tenant_store.py`):**
-- `create_tenant()`, `get_tenant()`, `get_tenant_by_sender()` — tenant CRUD
-- `update_tenant_status()`, `set_tenant_onboarded()` — status transitions for circuit breaker
-- `upsert_session()`, `get_session()`, `clear_session()` — conversation state
-- `mark_message_processed()` — idempotency gate (returns True if new, False if duplicate)
-- `check_and_increment_rate_limit()` — fixed-window counter (returns is_limited, count)
-- `cleanup_expired_sessions()`, `purge_old_processed_messages()` — TTL maintenance
-
-**Track B (`action_log.py`):**
-- `InMemoryActionLog` — deterministic test implementation
-- `SQLiteActionLog` — pilot-scale persistence
-- Both implement: `record()`, `most_recent()`, `mark_undone()`, `list_recent()`
+- **Webhook handler** (`main.py`): Resolves tenant_id from sender_id, uses `IdempotencyChecker` + `DBRateLimiter` when tenant exists, falls back to legacy in-memory limiter
+- **Routing layer** (`routing.py`): `_trackb_call()` wraps `submit_intent` and `undo` with `CircuitBreaker`; maps `CircuitBreakerError` to owner-facing messages
 
 ### Test results
 ```
-347 passed, 11 skipped in 29.92s
+379 passed, 11 skipped in 51.08s
 ```
 - 314 original tests: all passing (unchanged)
-- 22 new tenant store tests: all passing
-- 11 new action log tests: all passing
+- 33 Phase 1 tests: all passing (unchanged)
+- 32 Phase 2 tests: all passing (new)
 
 ### What was NOT changed
 - No existing tables modified
-- No existing test files modified
-- No existing module imports changed
+- No existing test files modified (only new test file added)
 - All new code is purely additive
 
 ## 7. Recommended next step
 
-**Begin Phase 2 (Reliability).** Wire the new tables into the existing code paths:
-1. Replace `wam_id` uniqueness check with `mark_message_processed()` before AI calls (§6.1)
-2. Replace in-memory `RateLimiter` with `check_and_increment_rate_limit()` (§6.2)
-3. Build the circuit breaker (§6.3) — retry logic, `update_tenant_status("degraded")`, auto-recovery, operator alerts
+**Begin Phase 3 (Conversational state machine).** Implement §3:
+1. Update session states: `IDLE`, `AWAITING_CLARIFICATION`, `AWAITING_CONFIRMATION`, `EXECUTING`
+2. Update confirmation matching to exact spec word sets (§3.3)
+3. Add confirmation re-ask logic (re-ask once, then cancel)
+4. Implement template-based clarification questions (§3.4)
+5. Add `unclear` action type (replaces `unsupported` → escalation)
+6. Add undo matching (§3.5)
