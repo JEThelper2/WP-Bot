@@ -14,7 +14,7 @@ Last updated: 2026-08-29
 - Phase 8 (Owner-facing features): DONE
 
 ## Currently in progress
-Phase 8 complete. All 8 phases implemented. Ready for final audit per §11.
+All 8 phases + session isolation fix complete. Ready for real WordPress site testing.
 
 ## Phase 3 audit — §3 compliance checklist
 
@@ -127,3 +127,7 @@ Phase 8 complete. All 8 phases implemented. Ready for final audit per §11.
 3. Railway deployment end-to-end
 4. Real WhatsApp Business API webhook delivery and response timing
 5. ENCRYPTION_KEY setup on Railway for production secrets (§7.2)
+
+### Gaps fixed after build audit
+- **Session isolation (§1.2)**: Router now uses DBSessionStore backed by conversation_sessions table, keyed by tenant_id. Previously used in-memory SessionStore keyed by owner_id — all sessions lost on restart, no tenant isolation at the session layer. Fixed in commit ca6ae8f.
+- **page_content_update**: Still not implemented — no content type in Track B registry. Not planned for any phase.
