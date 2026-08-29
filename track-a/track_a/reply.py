@@ -76,6 +76,11 @@ class WhatsAppReplySender:
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
         }
-        resp = await self._client.post(url, json=payload, headers=headers, timeout=30.0)
-        resp.raise_for_status()
-        logger.info("sent WhatsApp message to %s (status %s)", to, resp.status_code)
+        try:
+            resp = await self._client.post(url, json=payload, headers=headers, timeout=30.0)
+            resp.raise_for_status()
+            logger.info("sent WhatsApp message to %s (status %s)", to, resp.status_code)
+        except httpx.HTTPStatusError as exc:
+            logger.error("WhatsApp send failed for %s: %s", to, exc)
+        except Exception as exc:
+            logger.error("WhatsApp send error for %s: %s", to, exc)

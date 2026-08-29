@@ -62,3 +62,35 @@ def test_send_without_credentials_logs_and_sends_nothing():
 
     run(sender.send(OWNER, "hello"))
     assert called == []
+
+
+def test_send_http_error_does_not_raise():
+    """Graph API errors are logged, not raised — caller never crashes."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": {"message": "rate limit"}})
+
+    transport = httpx.MockTransport(handler)
+    http = httpx.AsyncClient(transport=transport)
+    sender = WhatsAppReplySender(
+        api_token="token",
+        phone_number_id="123",
+        client=http,
+    )
+    # Should not raise
+    run(sender.send(OWNER, "hello"))
+
+
+def test_send_connection_error_does_not_raise():
+    """Network errors are logged, not raised."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    transport = httpx.MockTransport(handler)
+    http = httpx.AsyncClient(transport=transport)
+    sender = WhatsAppReplySender(
+        api_token="token",
+        phone_number_id="123",
+        client=http,
+    )
+    # Should not raise
+    run(sender.send(OWNER, "hello"))
