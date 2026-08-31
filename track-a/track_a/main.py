@@ -227,7 +227,7 @@ def create_app(
     app.include_router(admin_router)
 
     # --- Static landing page (served from the site/ directory) -----------
-    _site_dir = Path(__file__).resolve().parent.parent.parent.parent / "site"
+    _site_dir = Path(__file__).resolve().parent.parent.parent / "site"
     if _site_dir.is_dir():
         from fastapi.staticfiles import StaticFiles
 
