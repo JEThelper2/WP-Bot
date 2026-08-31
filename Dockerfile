@@ -29,6 +29,10 @@ COPY track-a/ track-a/
 COPY track-b/ track-b/
 COPY site/ site/
 
+# Install the actual packages (not just their dependencies)
+RUN pip install --no-cache-dir -e ./track-a \
+    && pip install --no-cache-dir -e ./track-b
+
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
