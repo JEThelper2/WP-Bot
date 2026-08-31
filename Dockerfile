@@ -21,7 +21,7 @@ COPY track-b/ track-b/
 COPY site/ site/
 
 # Install all packages (source must be present for editable installs)
-RUN pip install --no-cache-dir ./shared-contract \
+RUN pip install --no-cache-dir -e ./shared-contract \
     && pip install --no-cache-dir -r track-a/requirements.txt \
     && pip install --no-cache-dir -r track-b/requirements.txt \
     && pip install --no-cache-dir -e ./track-a \
