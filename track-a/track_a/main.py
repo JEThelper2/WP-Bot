@@ -268,13 +268,32 @@ def create_app(
         except Exception:
             pass
 
+        # Redis: ping check (reads WPBOT_REDIS_URL env var)
+        redis_ok = False
+        redis_url = os.environ.get("WPBOT_REDIS_URL", "")
+        if redis_url:
+            try:
+                import redis.asyncio as aioredis
+
+                r = aioredis.from_url(redis_url, socket_connect_timeout=2.0)
+                await r.ping()
+                await r.aclose()
+                redis_ok = True
+            except Exception:
+                pass
+
         overall = "ok" if track_a_db and track_b_ok else "degraded"
-        return {
+        result: dict[str, Any] = {
             "status": overall,
             "service": "track-a",
             "db": "ok" if track_a_db else "unreachable",
             "track_b": "ok" if track_b_ok else "unreachable",
         }
+        if redis_url:
+            result["redis"] = "ok" if redis_ok else "unreachable"
+        else:
+            result["redis"] = "not_configured"
+        return result
 
     @app.get("/metrics")
     async def metrics_endpoint(_admin: str = Depends(require_admin)) -> PlainTextResponse:
