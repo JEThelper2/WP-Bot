@@ -1,11 +1,11 @@
 <?php
 /**
- * Plugin Name: WP-Bot business-info route
- * Description: REST route used by WP-Bot Track B to read/write the
+ * Plugin Name: Sitepaw business-info route
+ * Description: REST route used by Sitepaw Track B to read/write the
  *              business_info singleton (hours, contact, address, prices).
  *              Required because WordPress's core `settings` endpoint
  *              demands `manage_options` (Administrator), which violates
- *              the WP-Bot security guardrail of an Editor-only user.
+ *              the Sitepaw security guardrail of an Editor-only user.
  *              This route is gated on `edit_posts` (Editor and above) and
  *              writes ONLY the option keys in WPBOT_ALLOWED_KEYS.
  *
@@ -78,7 +78,7 @@ function wpbot_set_business_info( WP_REST_Request $request ) {
 		if ( ! in_array( $key, WPBOT_ALLOWED_KEYS, true ) ) {
 			return new WP_Error(
 				'key_not_allowed',
-				sprintf( 'option key %s is not in the WP-Bot allowlist', $key ),
+				sprintf( 'option key %s is not in the Sitepaw allowlist', $key ),
 				array( 'status' => 400 )
 			);
 		}
