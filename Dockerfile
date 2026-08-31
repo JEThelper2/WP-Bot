@@ -14,24 +14,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency manifests first (Docker layer caching)
-COPY shared-contract/pyproject.toml shared-contract/pyproject.toml
-COPY track-a/requirements.txt track-a/requirements.txt
-COPY track-b/requirements.txt track-b/requirements.txt
-
-# Install Python dependencies
-RUN pip install --no-cache-dir ./shared-contract \
-    && pip install --no-cache-dir -r track-a/requirements.txt \
-    && pip install --no-cache-dir -r track-b/requirements.txt
-
-# Copy application code
+# Copy all source code first
 COPY shared-contract/ shared-contract/
 COPY track-a/ track-a/
 COPY track-b/ track-b/
 COPY site/ site/
 
-# Install the actual packages (not just their dependencies)
-RUN pip install --no-cache-dir -e ./track-a \
+# Install all packages (source must be present for editable installs)
+RUN pip install --no-cache-dir ./shared-contract \
+    && pip install --no-cache-dir -r track-a/requirements.txt \
+    && pip install --no-cache-dir -r track-b/requirements.txt \
+    && pip install --no-cache-dir -e ./track-a \
     && pip install --no-cache-dir -e ./track-b
 
 # Create data directory for SQLite
