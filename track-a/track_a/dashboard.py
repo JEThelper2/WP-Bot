@@ -30,7 +30,6 @@ Routes (all under /admin/dashboard):
 from __future__ import annotations
 
 import csv
-import hmac
 import html
 import io
 import json
@@ -57,16 +56,12 @@ AUTO_REFRESH_SECONDS = 30
 
 
 def _check_auth(request: Request) -> None:
-    """Verify admin token — same logic as admin.py."""
-    token = getattr(request.app.state, "admin_token", None) or os.environ.get("ADMIN_TOKEN", "")
-    if not token:
-        return
-    auth_header = request.headers.get("authorization", "")
-    if auth_header.startswith("Bearer "):
-        provided = auth_header[7:]
-    else:
-        provided = request.query_params.get("token", "")
-    if not hmac.compare_digest(provided, token):
+    """Verify admin credentials via session cookie or bearer token."""
+    from .login import check_auth
+
+    if not check_auth(request):
+        if not os.environ.get("ADMIN_USERNAME") and not os.environ.get("ADMIN_TOKEN") and not getattr(request.app.state, "admin_token", None):
+            return
         from fastapi import HTTPException
 
         raise HTTPException(status_code=401, detail="Unauthorized")

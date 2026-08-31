@@ -30,6 +30,7 @@ from __future__ import annotations
 import hmac as _hmac
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -44,6 +45,7 @@ from .admin import router as admin_router
 from .ai_provider import get_provider
 from .config import DEFAULT_VERIFY_TOKEN, Settings
 from .dashboard import router as dashboard_router
+from .login import router as login_router
 from .intent import IntentParser
 from .media import WhatsAppMediaClient
 from .metrics import metrics
@@ -171,10 +173,12 @@ def create_app(
     app.state.processor = processor
     app.state.router = router
     app.state.admin_token = settings.admin_token
-    if not settings.admin_token:
+    admin_user = os.environ.get("ADMIN_USERNAME", "")
+    admin_pass = os.environ.get("ADMIN_PASSWORD", "")
+    if not settings.admin_token and not (admin_user and admin_pass):
         logger.warning(
-            "ADMIN_TOKEN is not set — admin dashboard and API are UNPROTECTED. "
-            "Set the ADMIN_TOKEN environment variable for production."
+            "Neither ADMIN_TOKEN nor ADMIN_USERNAME/ADMIN_PASSWORD are set — "
+            "admin dashboard and API are UNPROTECTED. Set credentials for production."
         )
     if settings.verify_token == DEFAULT_VERIFY_TOKEN:
         logger.warning(
@@ -223,6 +227,7 @@ def create_app(
     # Internal admin views (PRD §10 + dashboard).
     # Dashboard must be registered first to avoid /admin/dashboard being
     # caught by admin's /admin/{escalation_id} catch-all route.
+    app.include_router(login_router)
     app.include_router(dashboard_router)
     app.include_router(admin_router)
 
