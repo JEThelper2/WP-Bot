@@ -30,10 +30,13 @@ RUN pip install --no-cache-dir -e ./shared-contract \
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
-# Expose ports
-# Track A: 8000 (also serves static site at /), Track B: 8200 (internal)
-EXPOSE 8000 8200
+# Copy startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Default command: run both tracks
-# Railway overrides this via railway.json
-CMD ["sh", "-c", "uvicorn track_a.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Expose ports
+# Track A: $PORT (also serves static site at /), Track B: 8200 (internal)
+EXPOSE 8200
+
+# Default command: run both tracks via startup script
+CMD ["/app/start.sh"]
