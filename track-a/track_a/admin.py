@@ -15,15 +15,14 @@ Routes:
 
 from __future__ import annotations
 
-import hmac
 import logging
-import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader
 
+from .login import check_auth
 from .store import (
     count_escalation_requests,
     count_open_escalations,
@@ -55,19 +54,12 @@ _STATUS_COLORS = {
 
 
 def _check_auth(request: Request) -> None:
-    """Verify the admin token from the Authorization header or query param."""
-    token = getattr(request.app.state, "admin_token", None) or os.environ.get("ADMIN_TOKEN", "")
-    if not token:
-        return  # No token configured → auth disabled (dev mode)
-
-    # Check Authorization header first, then query param
-    auth_header = request.headers.get("authorization", "")
-    if auth_header.startswith("Bearer "):
-        provided = auth_header[7:]
-    else:
-        provided = request.query_params.get("token", "")
-
-    if not hmac.compare_digest(provided, token):
+    """Verify admin credentials via session cookie or bearer token."""
+    if not check_auth(request):
+        # No credentials configured → auth disabled (dev mode)
+        import os
+        if not os.environ.get("ADMIN_USERNAME") and not os.environ.get("ADMIN_TOKEN") and not getattr(request.app.state, "admin_token", None):
+            return
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 

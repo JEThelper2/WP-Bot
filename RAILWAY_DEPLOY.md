@@ -37,7 +37,9 @@
 | `WHATSAPP_APP_SECRET` | `abc123...` | Meta app secret — enables webhook signature verification |
 | `WHATSAPP_VERIFY_TOKEN` | `my-unique-token` | Meta webhook verification token (must match Meta dashboard) |
 | `GROQ_API_KEY` | `gsk_xxxxxx` | Groq API key for AI intent parsing |
-| `ADMIN_TOKEN` | `any-random-string` | Protects admin dashboard + API endpoints |
+| `ADMIN_USERNAME` | `admin` | Username for admin dashboard login |
+| `ADMIN_PASSWORD` | `your-secure-password` | Password for admin dashboard login |
+| `ADMIN_TOKEN` | `any-random-string` | (Optional) Bearer token for API access to admin endpoints |
 
 ### Optional (Recommended)
 
@@ -131,7 +133,9 @@ WHATSAPP_PHONE_NUMBER_ID=1234567890
 WHATSAPP_APP_SECRET=your_app_secret
 WHATSAPP_VERIFY_TOKEN=your_unique_verify_token
 GROQ_API_KEY=gsk_xxxxx
-ADMIN_TOKEN=some_random_string_here
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password-here
+ADMIN_TOKEN=optional_api_token_here
 WPBOT_SECRETS_KEY=generate-a-long-random-string-here
 ```
 
@@ -213,9 +217,13 @@ curl https://your-domain.com/
 curl https://your-domain.com/site/privacy.html
 curl https://your-domain.com/site/onboarding.html
 
-# Admin dashboard (if ADMIN_TOKEN is set)
+# Admin dashboard — open in browser
+# Navigate to: https://your-domain.com/admin/login
+# Enter the ADMIN_USERNAME and ADMIN_PASSWORD you set
+
+# API access (if ADMIN_TOKEN is set)
 curl -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
-  https://your-domain.com/dashboard/
+  https://your-domain.com/admin/dashboard
 
 # Prometheus metrics
 curl https://your-domain.com/metrics
