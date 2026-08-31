@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WP-Bot — Update Your Website by WhatsApp</title>
   <meta name="description" content="Update your WordPress website by sending a WhatsApp message. No dashboard, no login, no technical skills needed.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
   <meta property="og:title" content="WP-Bot — Update Your Website by WhatsApp">
   <meta property="og:description" content="No dashboard. No login. No technical skills. Just send a WhatsApp message and your WordPress site updates itself.">
   <meta property="og:type" content="website">
@@ -66,12 +67,12 @@
     /* ---- Material Symbols defaults ---- */
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     /* ---- Phone mockup chat message animations ---- */
-    .msg-animate { animation: message-appear 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+    .msg-animate { animation: message-appear 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; will-change: transform, opacity; }
     .msg-delay-1 { animation-delay: 0.3s; } .msg-delay-2 { animation-delay: 1.2s; } .msg-delay-3 { animation-delay: 2.4s; } .msg-delay-4 { animation-delay: 3.2s; }
     @keyframes message-appear { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: translateY(0); } }
     /* ---- YES pulse ---- */
     @keyframes pulse-yes { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-    .animate-pulse-yes { display: inline-block; animation: pulse-yes 2s ease-in-out infinite; animation-delay: 2.8s; }
+    .animate-pulse-yes { display: inline-block; animation: pulse-yes 2s ease-in-out infinite; animation-delay: 2.8s; will-change: transform; }
     /* ---- Teal pulse dot ---- */
     @keyframes pulse-teal { 0% { box-shadow: 0 0 0 0 rgba(13,148,136,0.4); } 70% { box-shadow: 0 0 0 6px rgba(13,148,136,0); } 100% { box-shadow: 0 0 0 0 rgba(13,148,136,0); } }
     .pulse-teal { animation: pulse-teal 2s infinite; }
@@ -105,7 +106,7 @@
     /* ---- Phone wallpaper pattern ---- */
     .phone-wallpaper { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72zm-8.318 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72zm-8.318 0l.83.83-2.69 2.69-2.69-2.69.83-.83h3.72z' fill='%23000000' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E"); }
     /* ---- Scroll reveal ---- */
-    .reveal { opacity: 0; transform: translateY(32px); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); }
+    .reveal { opacity: 0; transform: translateY(32px); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); will-change: transform, opacity; }
     .reveal.visible { opacity: 1; transform: translateY(0); }
     .reveal-delay-1 { transition-delay: 0.1s; }
     .reveal-delay-2 { transition-delay: 0.2s; }
@@ -219,7 +220,7 @@
           <!-- Assistant Message -->
           <div class="msg-animate msg-delay-4 bg-surface self-start p-3 rounded-lg rounded-tl-none shadow-sm max-w-[85%] border-l-4 border-brand-teal">
             <p class="text-sm text-text-primary leading-snug">✅ Done. Your website has been updated.</p>
-            <a class="text-brand-teal text-[13px] underline mt-1 block" href="#">View live site</a>
+            <span class="text-brand-teal text-[13px] mt-1 block">View live site →</span>
             <p class="text-[10px] text-text-secondary text-right mt-1">10:45 AM</p>
           </div>
         </div>
@@ -404,10 +405,10 @@
         </div>
         <h4 class="text-sm font-semibold text-text-primary mb-2">Changes Published Successfully</h4>
         <p class="text-xs text-text-secondary mb-4">Your opening hours have been updated across the site.</p>
-        <a class="inline-flex items-center gap-2 text-brand-teal text-sm font-medium hover:underline" href="#">
+        <span class="inline-flex items-center gap-2 text-brand-teal text-sm font-medium">
           View live site
           <span class="material-symbols-outlined" style="font-size: 16px;">open_in_new</span>
-        </a>
+        </span>
       </div>
     </div>
   </div>
@@ -518,7 +519,7 @@
         <div class="self-end max-w-[85%]"><div class="bg-surface-container-low text-text-primary rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft">Change our phone number to 0803 XXX XXXX</div><div class="text-right text-[10px] text-on-surface-variant mt-1">10:42 AM</div></div>
         <div class="self-start max-w-[85%]"><div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">Got it. I'll update the phone number on your contact page to <strong>0803 XXX XXXX</strong>. Reply YES to publish, NO to cancel.</div><div class="text-[10px] text-on-surface-variant mt-1">10:43 AM</div></div>
         <div class="self-end max-w-[85%]"><div class="bg-brand-mint/20 text-text-primary rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-brand-mint/30 font-bold">YES</div><div class="text-right text-[10px] text-on-surface-variant mt-1">10:45 AM</div></div>
-        <div class="self-start max-w-[85%]"><div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">✅ Done! Your phone number has been updated. <a href="#" class="text-brand-teal underline">View live site</a><br><span class="text-[10px] text-on-surface-variant">Undo available for 24h — reply UNDO</span></div><div class="text-[10px] text-on-surface-variant mt-1">10:45 AM</div></div>
+        <div class="self-start max-w-[85%]"><div class="bg-surface text-text-primary border border-border-soft rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">✅ Done! Your phone number has been updated.        <span class="text-brand-teal underline">View live site</span><br><span class="text-[10px] text-on-surface-variant">Undo available for 24h — reply UNDO</span></div><div class="text-[10px] text-on-surface-variant mt-1">10:45 AM</div></div>
       </div>
     </div>
   </div>

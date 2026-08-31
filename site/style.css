@@ -109,7 +109,7 @@
 /* ---- Step illustration animation ---- */
 @keyframes scale-pulse {
   0%, 100% { transform: scaleX(1); }
-  50% { transform: scaleX(1); }
+  50% { transform: scaleX(1.5); }
 }
 .animate-scale-x {
   animation: scale-pulse 2s ease-in-out infinite alternate;

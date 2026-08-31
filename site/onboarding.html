@@ -2,279 +2,356 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Setup Guide — WP-Bot</title>
   <meta name="description" content="Step-by-step guide to connect your WordPress website to WP-Bot via WhatsApp.">
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "brand-navy": "#0B1220",
+            "brand-teal": "#0D9488",
+            "brand-mint": "#2DD4BF",
+            "surface": "#FFFFFF",
+            "surface-container-low": "#f2f4f3",
+            "surface-container": "#eceeed",
+            "surface-container-high": "#e6e9e8",
+            "text-primary": "#111827",
+            "text-secondary": "#64748B",
+            "border-soft": "#E2E8F0",
+            "success": "#16A34A",
+            "error": "#DC2626",
+            "on-surface-variant": "#45474c",
+            "secondary": "#006a61",
+            "secondary-container": "#86f2e4",
+            "on-secondary-container": "#006f66",
+            "primary-container": "#151b2a",
+            "on-primary-fixed": "#7d8496",
+            "inverse-primary": "#c0c6da",
+            "background": "#f8faf9",
+          },
+          fontFamily: { inter: ["Inter", "sans-serif"] },
+          maxWidth: { "container-max": "1280px" },
+          spacing: { "margin-mobile": "16px", "margin-desktop": "40px", "gutter": "24px" },
+          borderRadius: { "card": "0.75rem" },
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+  </style>
 </head>
-<body>
+<body class="bg-background text-text-primary font-inter antialiased">
 
-<!-- Header -->
-<header class="header">
-  <div class="header-inner">
-    <a href="index.html" class="logo">
-      <div class="logo-icon">W</div>
+<!-- Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-border-soft">
+  <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+    <a class="text-xl font-bold text-brand-navy flex items-center gap-2" href="index.html">
+      <span class="material-symbols-outlined text-[28px] text-brand-teal">smart_toy</span>
       WP-Bot
     </a>
-    <nav class="nav-links">
-      <a href="index.html">Home</a>
-      <a href="#step-1">Setup Guide</a>
-    </nav>
+    <div class="hidden md:flex items-center gap-8">
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#how-it-works">How it works</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#features">Features</a>
+      <a class="text-text-secondary font-medium text-sm hover:text-brand-navy transition-colors" href="index.html#pricing">Pricing</a>
+    </div>
+    <a class="bg-brand-navy text-white font-medium text-sm px-6 py-2.5 rounded-card hover:bg-brand-navy/90 transition-colors shadow-level-1" href="index.html#pricing">
+      Get started
+    </a>
   </div>
-</header>
+</nav>
+
+<main class="pt-[72px]">
 
 <!-- Hero -->
-<section class="hero" style="padding: 40px 20px 32px;">
-  <div class="container">
-    <h1 style="font-size:1.8rem;">Setup Guide</h1>
-    <p class="subtitle" style="margin-bottom:0;">
-      Connect your WordPress website to WP-Bot in under 5 minutes. Follow these steps, then message our WhatsApp number to finish.
-    </p>
-  </div>
+<section class="py-12 md:py-20 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+  <h1 class="text-4xl md:text-[48px] font-bold tracking-tight text-text-primary mb-4">Setup Guide</h1>
+  <p class="text-lg text-text-secondary max-w-2xl leading-relaxed">
+    Connect your WordPress website to WP-Bot in under 5 minutes. Follow these steps, then message our WhatsApp number to finish.
+  </p>
 </section>
 
-<!-- Overview -->
-<section>
-  <div class="container">
-    <h2 class="section-title" style="font-size:1.3rem;">What You'll Need</h2>
-    <div class="steps" style="max-width:600px;">
-      <div class="step" style="box-shadow:none;border:1px solid var(--gray-light);padding:16px;">
-        <div class="step-num" style="width:32px;height:32px;min-width:32px;font-size:0.9rem;">✓</div>
-        <div class="step-content">
-          <h3 style="font-size:0.95rem;">Access to your WordPress admin</h3>
-          <p style="font-size:0.85rem;">You need to log in to your WordPress dashboard at <code>yourdomain.com/wp-admin</code></p>
-        </div>
+<!-- What You'll Need -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto mb-16">
+  <h2 class="text-2xl font-semibold text-text-primary mb-6">What You'll Need</h2>
+  <div class="grid sm:grid-cols-2 gap-4 max-w-2xl">
+    <div class="bg-surface rounded-xl p-5 border border-border-soft flex items-start gap-3">
+      <span class="material-symbols-outlined text-brand-teal mt-0.5">check_circle</span>
+      <div>
+        <h3 class="font-semibold text-text-primary text-sm">WordPress admin access</h3>
+        <p class="text-text-secondary text-sm mt-1">Log in to your dashboard at <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">yourdomain.com/wp-admin</code></p>
       </div>
-      <div class="step" style="box-shadow:none;border:1px solid var(--gray-light);padding:16px;">
-        <div class="step-num" style="width:32px;height:32px;min-width:32px;font-size:0.9rem;">✓</div>
-        <div class="step-content">
-          <h3 style="font-size:0.95rem;">About 5 minutes</h3>
-          <p style="font-size:0.85rem;">The whole process is quick — create a user, generate a password, install a small file</p>
-        </div>
+    </div>
+    <div class="bg-surface rounded-xl p-5 border border-border-soft flex items-start gap-3">
+      <span class="material-symbols-outlined text-brand-teal mt-0.5">check_circle</span>
+      <div>
+        <h3 class="font-semibold text-text-primary text-sm">About 5 minutes</h3>
+        <p class="text-text-secondary text-sm mt-1">Create a user, generate a password, install a small file</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Step 1: Create Editor User -->
-<section style="background:var(--white);">
-  <div class="container">
-    <div class="guide-steps">
+<!-- Steps -->
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pb-20">
+  <div class="max-w-3xl space-y-12">
 
-      <div class="guide-step" data-step="1" id="step-1">
-        <h3>Create a Dedicated WordPress User (Editor Role)</h3>
-        <p>
-          WP-Bot needs its own WordPress user with <strong>Editor</strong> permissions — not your admin account.
-          This limits what WP-Bot can do: it can manage posts and media, but cannot change your site settings,
-          install plugins, or modify users. This is a security feature, not a limitation.
-        </p>
-        <ol>
-          <li>Log in to your WordPress admin at <code>yourdomain.com/wp-admin</code></li>
-          <li>Go to <strong>Users → Add New User</strong></li>
-          <li>Fill in the form:
-            <ul>
-              <li><strong>Username:</strong> <code>wpbot</code> (or any name you'll remember)</li>
-              <li><strong>Email:</strong> any email you control (for password reset if needed)</li>
-              <li><strong>Password:</strong> click "Generate Password" — you'll use the application password instead</li>
-              <li><strong>Role:</strong> select <strong>Editor</strong> (NOT Administrator)</li>
-            </ul>
-          </li>
-          <li>Click <strong>Add New User</strong></li>
-        </ol>
-        <div class="warning">
-          <strong>⚠️ Important:</strong> The role MUST be <strong>Editor</strong>. If you choose Administrator, WP-Bot will reject the connection for security reasons. If you choose anything less than Editor (like Author or Subscriber), WP-Bot won't be able to post on your behalf.
-        </div>
+    <!-- Step 1 -->
+    <div class="bg-surface rounded-2xl shadow-sm border border-border-soft p-8">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">1</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Create a Dedicated WordPress User (Editor Role)</h3>
       </div>
-
-      <!-- Step 2: Application Password -->
-      <div class="guide-step" data-step="2">
-        <h3>Generate an Application Password</h3>
-        <p>
-          An application password is a special WordPress password designed for API access.
-          It's safer than using your regular login password because it can only access the REST API —
-          it can't be used to log in to your WordPress dashboard.
-        </p>
-        <ol>
-          <li>In WordPress admin, go to <strong>Users → Profile</strong> (or click your username at the top right)</li>
-          <li>Scroll down to the <strong>Application Passwords</strong> section</li>
-          <li>Enter a name: type <code>wp-bot</code></li>
-          <li>Click <strong>Add New Application Password</strong></li>
-          <li><strong>Copy the password immediately</strong> — it's only shown once! It will look something like:
-            <code>xxxx xxxx xxxx xxxx xxxx xxxx</code>
-            (a string of letters and numbers with spaces)
-          </li>
-        </ol>
-        <div class="screenshot-placeholder">
-          📸 Application Passwords section in WordPress Profile page<br>
-          <em>Screenshot coming soon</em>
-        </div>
-        <div class="tip">
-          <strong>Tip:</strong> If you don't see the "Application Passwords" section, your site may need the
-          application passwords feature enabled. Most modern WordPress sites (5.6+) have this built in.
-          Contact your hosting provider if it's missing.
-        </div>
+      <p class="text-text-secondary leading-relaxed mb-6">
+        WP-Bot needs its own WordPress user with <strong class="text-text-primary">Editor</strong> permissions — not your admin account. This limits what WP-Bot can do: it can manage posts and media, but cannot change your site settings, install plugins, or modify users.
+      </p>
+      <ol class="space-y-3 text-text-secondary ml-5 list-decimal">
+        <li>Log in to your WordPress admin at <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">yourdomain.com/wp-admin</code></li>
+        <li>Go to <strong class="text-text-primary">Users → Add New User</strong></li>
+        <li>
+          Fill in the form:
+          <ul class="mt-2 space-y-1 ml-4 list-disc text-sm">
+            <li><strong class="text-text-primary">Username:</strong> <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">wpbot</code> (or any name you'll remember)</li>
+            <li><strong class="text-text-primary">Email:</strong> any email you control</li>
+            <li><strong class="text-text-primary">Password:</strong> click "Generate Password" — you'll use the application password instead</li>
+            <li><strong class="text-text-primary">Role:</strong> select <strong class="text-text-primary">Editor</strong> (NOT Administrator)</li>
+          </ul>
+        </li>
+        <li>Click <strong class="text-text-primary">Add New User</strong></li>
+      </ol>
+      <div class="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
+        <span class="material-symbols-outlined text-amber-600 shrink-0">warning</span>
+        <p class="text-sm text-amber-800"><strong>Important:</strong> The role MUST be <strong>Editor</strong>. If you choose Administrator, WP-Bot will reject the connection. If you choose anything less than Editor, WP-Bot won't be able to post on your behalf.</p>
       </div>
-
-      <!-- Step 3: Install the mu-plugin (optional but recommended) -->
-      <div class="guide-step" data-step="3">
-        <h3>Install the WP-Bot Plugin (Recommended)</h3>
-        <p>
-          WP-Bot includes a small WordPress plugin that lets us update your business information
-          (phone, hours, address, prices) through a secure API. Without this plugin, WP-Bot can still
-          post jobs and announcements, but business info updates won't work.
-        </p>
-        <p><strong>How to install:</strong></p>
-        <ol>
-          <li>Download the plugin file:
-            <a href="wpbot-business-info.php" download style="font-weight:600;">wpbot-business-info.php</a>
-            (right-click → Save As)
-          </li>
-          <li>Log in to your WordPress admin</li>
-          <li>Go to <strong>Plugins → Plugin File Editor</strong> (or use your hosting file manager)</li>
-          <li>Navigate to the <code>wp-content/mu-plugins/</code> folder
-            <ul>
-              <li>If the <code>mu-plugins</code> folder doesn't exist, create it</li>
-            </ul>
-          </li>
-          <li>Upload or paste the <code>wpbot-business-info.php</code> file into that folder</li>
-          <li>The plugin activates automatically (mu-plugins don't need manual activation)</li>
-        </ol>
-        <div class="tip">
-          <strong>Alternative method (via hosting file manager):</strong>
-          If you have cPanel, Plesk, or another hosting control panel, use the File Manager to navigate to
-          <code>public_html/wp-content/mu-plugins/</code> and upload the file there.
-        </div>
-        <div class="screenshot-placeholder">
-          📸 mu-plugins folder in WordPress file structure<br>
-          <em>Screenshot coming soon</em>
-        </div>
-      </div>
-
-      <!-- Step 4: Message WP-Bot on WhatsApp -->
-      <div class="guide-step" data-step="4">
-        <h3>Message WP-Bot on WhatsApp</h3>
-        <p>
-          Now that your WordPress site is ready, open WhatsApp and send a message to the WP-Bot number.
-          The bot will guide you through the final steps.
-        </p>
-        <ol>
-          <li>Open WhatsApp and message the WP-Bot number</li>
-          <li>Send: <code>set up my website</code></li>
-          <li>When asked, send your site URL:
-            <div class="chat-example">
-              <div class="bubble right">set up my website</div>
-              <div class="bubble">Let's connect your website so you can update it by WhatsApp. Step 1 — send me your site URL, for example https://mybusiness.com</div>
-              <div class="bubble right">https://myrestaurant.com</div>
-            </div>
-          </li>
-          <li>Send your WordPress username (the one you created in Step 1):
-            <div class="chat-example">
-              <div class="bubble">Got it — https://myrestaurant.com. Step 2 — send the WordPress username of the user I'll use (it needs the Editor role).</div>
-              <div class="bubble right">wpbot</div>
-            </div>
-          </li>
-          <li>Send the application password you copied in Step 2:
-            <div class="chat-example">
-              <div class="bubble">Step 3 — send the application password for that user.</div>
-              <div class="bubble right">xxxx xxxx xxxx xxxx xxxx xxxx</div>
-              <div class="bubble">You're all set — https://myrestaurant.com is connected and ready. Try asking me: "Post a job: part-time barista, $18/hr", "Add an announcement: closed July 4th", or "Change my hours to 9-6". I'll always confirm with you before anything goes live.</div>
-            </div>
-          </li>
-        </ol>
-        <div class="tip">
-          <strong>That's it!</strong> Your website is now connected. You can start updating it by sending WhatsApp messages anytime.
-        </div>
-      </div>
-
-      <!-- Step 5: Start Using -->
-      <div class="guide-step" data-step="5">
-        <h3>Start Updating Your Website</h3>
-        <p>Here are some examples of what you can send:</p>
-
-        <div class="chat-example">
-          <div class="label">📋 Post a Job</div>
-          <div class="bubble right">Post a job: Part-time cashier, ₦50/hr, must be available weekends</div>
-        </div>
-
-        <div class="chat-example">
-          <div class="label">📢 Post an Announcement</div>
-          <div class="bubble right">Add an announcement: We're closed December 25th for Christmas</div>
-        </div>
-
-        <div class="chat-example">
-          <div class="label">ℹ️ Update Business Info</div>
-          <div class="bubble right">Change our hours to Mon-Fri 8am-6pm, Sat 9am-2pm</div>
-        </div>
-
-        <div class="chat-example">
-          <div class="label">🖼️ Replace an Image</div>
-          <div class="bubble right">[send a photo] Update the homepage banner</div>
-        </div>
-
-        <div class="chat-example">
-          <div class="label">↩️ Undo a Change</div>
-          <div class="bubble right">UNDO</div>
-          <div class="bubble">Reverted: the job 'Part-time cashier' has been removed. Your site is back to how it was before.</div>
-        </div>
-
-        <div class="warning">
-          <strong>⚠️ Remember:</strong> WP-Bot will always show you a preview and ask for YES before publishing anything.
-          You're always in control.
-        </div>
-      </div>
-
     </div>
+
+    <!-- Step 2 -->
+    <div class="bg-surface rounded-2xl shadow-sm border border-border-soft p-8">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">2</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Generate an Application Password</h3>
+      </div>
+      <p class="text-text-secondary leading-relaxed mb-6">
+        An application password is a special WordPress password designed for API access. It's safer than using your regular login password because it can only access the REST API.
+      </p>
+      <ol class="space-y-3 text-text-secondary ml-5 list-decimal">
+        <li>In WordPress admin, go to <strong class="text-text-primary">Users → Profile</strong></li>
+        <li>Scroll down to the <strong class="text-text-primary">Application Passwords</strong> section</li>
+        <li>Enter a name: type <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">wp-bot</code></li>
+        <li>Click <strong class="text-text-primary">Add New Application Password</strong></li>
+        <li><strong class="text-text-primary">Copy the password immediately</strong> — it's only shown once! It looks like: <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">xxxx xxxx xxxx xxxx xxxx xxxx</code></li>
+      </ol>
+      <div class="mt-6 bg-surface-container-low border border-border-soft rounded-lg p-4 flex gap-3">
+        <span class="material-symbols-outlined text-brand-teal shrink-0">lightbulb</span>
+        <p class="text-sm text-text-secondary"><strong class="text-text-primary">Tip:</strong> If you don't see "Application Passwords", your site may need it enabled. Most modern WordPress sites (5.6+) have this built in.</p>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="bg-surface rounded-2xl shadow-sm border border-border-soft p-8">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">3</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Install the WP-Bot Plugin (Recommended)</h3>
+      </div>
+      <p class="text-text-secondary leading-relaxed mb-6">
+        WP-Bot includes a small WordPress plugin that lets us update your business information (phone, hours, address, prices) through a secure API. Without this plugin, WP-Bot can still post jobs and announcements, but business info updates won't work.
+      </p>
+      <ol class="space-y-3 text-text-secondary ml-5 list-decimal">
+        <li>Download the plugin file: <a href="wpbot-business-info.php" download class="text-brand-teal font-semibold hover:underline">wpbot-business-info.php</a> (right-click → Save As)</li>
+        <li>Log in to your WordPress admin</li>
+        <li>Go to <strong class="text-text-primary">Plugins → Plugin File Editor</strong> (or use your hosting file manager)</li>
+        <li>Navigate to the <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">wp-content/mu-plugins/</code> folder (create it if it doesn't exist)</li>
+        <li>Upload or paste the <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">wpbot-business-info.php</code> file into that folder</li>
+        <li>The plugin activates automatically (mu-plugins don't need manual activation)</li>
+      </ol>
+      <div class="mt-6 bg-surface-container-low border border-border-soft rounded-lg p-4 flex gap-3">
+        <span class="material-symbols-outlined text-brand-teal shrink-0">lightbulb</span>
+        <p class="text-sm text-text-secondary"><strong class="text-text-primary">Alternative:</strong> Use your hosting file manager (cPanel, Plesk) to navigate to <code class="bg-surface px-1.5 py-0.5 rounded text-xs">public_html/wp-content/mu-plugins/</code> and upload the file there.</p>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="bg-surface rounded-2xl shadow-sm border border-border-soft p-8">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">4</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Message WP-Bot on WhatsApp</h3>
+      </div>
+      <p class="text-text-secondary leading-relaxed mb-6">
+        Now that your WordPress site is ready, open WhatsApp and send a message to the WP-Bot number. The bot will guide you through the final steps.
+      </p>
+
+      <div class="space-y-4">
+        <div class="bg-surface-container-low rounded-2xl p-4 max-w-sm">
+          <div class="bg-surface rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft mb-2 self-end ml-auto w-fit">
+            set up my website
+          </div>
+          <div class="bg-surface rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">
+            Let's connect your website so you can update it by WhatsApp. Step 1 — send me your site URL, for example https://mybusiness.com
+          </div>
+        </div>
+
+        <div class="bg-surface-container-low rounded-2xl p-4 max-w-sm">
+          <div class="bg-surface rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft mb-2 self-end ml-auto w-fit">
+            https://myrestaurant.com
+          </div>
+          <div class="bg-surface rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">
+            Got it — https://myrestaurant.com. Step 2 — send the WordPress username of the user I'll use (it needs the Editor role).
+          </div>
+        </div>
+
+        <div class="bg-surface-container-low rounded-2xl p-4 max-w-sm">
+          <div class="bg-surface rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft mb-2 self-end ml-auto w-fit">
+            wpbot
+          </div>
+          <div class="bg-surface rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">
+            Step 3 — send the application password for that user.
+          </div>
+        </div>
+
+        <div class="bg-surface-container-low rounded-2xl p-4 max-w-sm">
+          <div class="bg-surface rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-sm border border-border-soft mb-2 self-end ml-auto w-fit font-mono text-xs">
+            xxxx xxxx xxxx xxxx xxxx xxxx
+          </div>
+          <div class="bg-surface rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm border-l-4 border-brand-teal">
+            You're all set — https://myrestaurant.com is connected and ready. Try asking me to post a job, add an announcement, or change your hours. I'll always confirm with you before anything goes live.
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 bg-green-50 border border-green-200 rounded-lg p-4 flex gap-3">
+        <span class="material-symbols-outlined text-green-600 shrink-0">check_circle</span>
+        <p class="text-sm text-green-800"><strong>That's it!</strong> Your website is now connected. You can start updating it by sending WhatsApp messages anytime.</p>
+      </div>
+    </div>
+
+    <!-- Step 5: Examples -->
+    <div class="bg-surface rounded-2xl shadow-sm border border-border-soft p-8">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-sm">5</div>
+        <h3 class="text-xl md:text-2xl font-semibold text-text-primary">Start Updating Your Website</h3>
+      </div>
+      <p class="text-text-secondary leading-relaxed mb-6">Here are some examples of what you can send:</p>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="bg-surface-container-low rounded-xl p-4 border border-border-soft">
+          <div class="text-xs font-semibold text-brand-teal mb-2">📋 Post a Job</div>
+          <div class="bg-surface rounded-lg px-3 py-2 text-sm border border-border-soft">Post a job: Part-time cashier, ₦50/hr, must be available weekends</div>
+        </div>
+        <div class="bg-surface-container-low rounded-xl p-4 border border-border-soft">
+          <div class="text-xs font-semibold text-brand-teal mb-2">📢 Post an Announcement</div>
+          <div class="bg-surface rounded-lg px-3 py-2 text-sm border border-border-soft">Add an announcement: We're closed December 25th for Christmas</div>
+        </div>
+        <div class="bg-surface-container-low rounded-xl p-4 border border-border-soft">
+          <div class="text-xs font-semibold text-brand-teal mb-2">ℹ️ Update Business Info</div>
+          <div class="bg-surface rounded-lg px-3 py-2 text-sm border border-border-soft">Change our hours to Mon-Fri 8am-6pm, Sat 9am-2pm</div>
+        </div>
+        <div class="bg-surface-container-low rounded-xl p-4 border border-border-soft">
+          <div class="text-xs font-semibold text-brand-teal mb-2">🖼️ Replace an Image</div>
+          <div class="bg-surface rounded-lg px-3 py-2 text-sm border border-border-soft">[send a photo] Update the homepage banner</div>
+        </div>
+      </div>
+
+      <div class="mt-4 bg-surface-container-low rounded-xl p-4 border border-border-soft">
+        <div class="text-xs font-semibold text-brand-teal mb-2">↩️ Undo a Change</div>
+        <div class="bg-surface rounded-lg px-3 py-2 text-sm border border-border-soft">UNDO</div>
+      </div>
+
+      <div class="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
+        <span class="material-symbols-outlined text-amber-600 shrink-0">warning</span>
+        <p class="text-sm text-amber-800"><strong>Remember:</strong> WP-Bot will always show you a preview and ask for YES before publishing anything. You're always in control.</p>
+      </div>
+    </div>
+
   </div>
 </section>
 
 <!-- Troubleshooting -->
-<section style="background:var(--white);">
-  <div class="container">
-    <h2 class="section-title" style="font-size:1.3rem;">Troubleshooting</h2>
-    <div class="guide-steps">
-
-      <div class="guide-step" data-step="?" style="margin-top:0;">
-        <h3>"WordPress rejected the application password"</h3>
-        <p>This means the password didn't work. Common fixes:</p>
-        <ul>
-          <li>Make sure you copied the <strong>full</strong> password including spaces</li>
+<section class="px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto pb-20">
+  <h2 class="text-2xl font-semibold text-text-primary mb-8">Troubleshooting</h2>
+  <div class="max-w-3xl space-y-4">
+    <details class="bg-surface rounded-xl border border-border-soft group">
+      <summary class="p-5 cursor-pointer font-semibold text-text-primary hover:text-brand-teal transition-colors flex items-center justify-between">
+        "WordPress rejected the application password"
+        <span class="material-symbols-outlined text-text-secondary group-open:rotate-180 transition-transform">expand_more</span>
+      </summary>
+      <div class="px-5 pb-5 text-text-secondary text-sm space-y-2">
+        <p>Common fixes:</p>
+        <ul class="list-disc ml-5 space-y-1">
+          <li>Make sure you copied the <strong class="text-text-primary">full</strong> password including spaces</li>
           <li>Try generating a new application password — the old one may have been revoked</li>
-          <li>Make sure the user account is <strong>active</strong> (not disabled)</li>
+          <li>Make sure the user account is <strong class="text-text-primary">active</strong> (not disabled)</li>
         </ul>
       </div>
-
-      <div class="guide-step" data-step="?">
-        <h3>"The login works, but that user can't edit posts"</h3>
-        <p>The WordPress user you created doesn't have the Editor role. Go to <strong>Users</strong> in WordPress admin, click on the user, and change their role to <strong>Editor</strong>.</p>
+    </details>
+    <details class="bg-surface rounded-xl border border-border-soft group">
+      <summary class="p-5 cursor-pointer font-semibold text-text-primary hover:text-brand-teal transition-colors flex items-center justify-between">
+        "The login works, but that user can't edit posts"
+        <span class="material-symbols-outlined text-text-secondary group-open:rotate-180 transition-transform">expand_more</span>
+      </summary>
+      <div class="px-5 pb-5 text-text-secondary text-sm">
+        <p>The WordPress user you created doesn't have the Editor role. Go to <strong class="text-text-primary">Users</strong> in WordPress admin, click on the user, and change their role to <strong class="text-text-primary">Editor</strong>.</p>
       </div>
-
-      <div class="guide-step" data-step="?">
-        <h3>"I couldn't reach your site"</h3>
-        <p>Double-check your site URL. It should start with <code>https://</code> (or <code>http://</code>) and be the same address you type in your browser to visit your site.</p>
+    </details>
+    <details class="bg-surface rounded-xl border border-border-soft group">
+      <summary class="p-5 cursor-pointer font-semibold text-text-primary hover:text-brand-teal transition-colors flex items-center justify-between">
+        "I couldn't reach your site"
+        <span class="material-symbols-outlined text-text-secondary group-open:rotate-180 transition-transform">expand_more</span>
+      </summary>
+      <div class="px-5 pb-5 text-text-secondary text-sm">
+        <p>Double-check your site URL. It should start with <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">https://</code> and be the same address you type in your browser to visit your site.</p>
       </div>
-
-      <div class="guide-step" data-step="?">
-        <h3>"That site is online, but I couldn't find WordPress on it"</h3>
-        <p>Make sure the URL points to a WordPress site. If your site uses a different URL structure (like <code>yourdomain.com/blog</code>), try including the path.</p>
+    </details>
+    <details class="bg-surface rounded-xl border border-border-soft group">
+      <summary class="p-5 cursor-pointer font-semibold text-text-primary hover:text-brand-teal transition-colors flex items-center justify-between">
+        "That site is online, but I couldn't find WordPress on it"
+        <span class="material-symbols-outlined text-text-secondary group-open:rotate-180 transition-transform">expand_more</span>
+      </summary>
+      <div class="px-5 pb-5 text-text-secondary text-sm">
+        <p>Make sure the URL points to a WordPress site. If your site uses a different URL structure (like <code class="bg-surface-container-low px-1.5 py-0.5 rounded text-xs">yourdomain.com/blog</code>), try including the path.</p>
       </div>
-
-    </div>
+    </details>
   </div>
 </section>
 
 <!-- CTA -->
-<section class="cta-section">
-  <div class="container">
-    <h2>Ready? Let's get started.</h2>
-    <p>Message our WhatsApp number with "set up my website" and follow the prompts.</p>
-    <a href="index.html" class="cta-btn">← Back to Home</a>
+<section class="bg-brand-navy py-16 px-margin-mobile md:px-margin-desktop">
+  <div class="max-w-container-max mx-auto text-center">
+    <h2 class="text-2xl md:text-3xl font-semibold text-white mb-4">Ready? Let's get started.</h2>
+    <p class="text-white/70 mb-8">Message our WhatsApp number with "set up my website" and follow the prompts.</p>
+    <a href="index.html" class="inline-flex items-center gap-2 bg-brand-teal hover:bg-brand-mint text-white font-medium px-8 py-4 rounded-full transition-all">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back to Home
+    </a>
   </div>
 </section>
 
+</main>
+
 <!-- Footer -->
-<footer class="footer">
-  <div class="container">
-    <p>WP-Bot &copy; 2026 &middot; <a href="index.html">Home</a> &middot; Built for WordPress site owners who'd rather text than log in.</p>
+<footer class="bg-surface border-t border-border-soft py-12">
+  <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-6">
+    <div class="text-xl font-bold text-brand-navy flex items-center gap-2">
+      <span class="material-symbols-outlined text-[20px] text-brand-teal">smart_toy</span>
+      WP-Bot
+    </div>
+    <div class="flex gap-6">
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="terms.html">Terms</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="privacy.html">Privacy</a>
+      <a class="text-on-surface-variant hover:text-brand-teal transition-colors text-sm" href="index.html">Home</a>
+    </div>
+    <div class="text-xs text-on-surface-variant text-center md:text-right">
+      © 2026 WP-Bot. Intelligent Simplicity.
+    </div>
   </div>
 </footer>
 
