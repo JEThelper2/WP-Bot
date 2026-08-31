@@ -134,7 +134,7 @@ async def run_cli(owner_id: str, dry_run: bool, verbose: bool) -> None:
     router = build_router(dry_run=dry_run, verbose=verbose)
 
     print("=" * 60)
-    print("  WP-Bot Terminal Chat (manual testing mode)")
+    print("  Sitepaw Terminal Chat (manual testing mode)")
     print(f"  Owner ID: {owner_id}")
     print(f"  Track B:  {'dry-run stub' if dry_run else os.environ.get('TRACK_B_URL', 'http://127.0.0.1:8200')}")
     print(f"  AI:       {os.environ.get('AI_PROVIDER', 'groq')}")
@@ -183,7 +183,7 @@ async def run_cli(owner_id: str, dry_run: bool, verbose: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Terminal chatbot for WP-Bot testing")
+    parser = argparse.ArgumentParser(description="Terminal chatbot for Sitepaw testing")
     parser.add_argument("--dry-run", action="store_true", help="Skip Track B API calls (use stub)")
     parser.add_argument("--verbose", action="store_true", help="Show branch/reason metadata")
     parser.add_argument("--owner", default=None, help="Override owner ID (default: OWNER_ID env or cli_test_owner)")

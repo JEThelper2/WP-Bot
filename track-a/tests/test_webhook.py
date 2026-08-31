@@ -359,4 +359,7 @@ def test_health(client: TestClient, app) -> None:
     headers = {"Authorization": f"Bearer {app.state.admin_token}"}
     resp = client.get("/health", headers=headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "ok"
+    data = resp.json()
+    assert data["service"] == "track-a"
+    assert data["db"] == "ok"
+    assert "track_b" in data  # may be "ok" or "unreachable" depending on Track B

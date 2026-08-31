@@ -160,7 +160,7 @@ def create_app(
         await shared_client.aclose()
 
     app = FastAPI(
-        title="WP-Bot Track A (WhatsApp conversation service)",
+        title="Sitepaw Track A (WhatsApp conversation service)",
         version="0.1.0",
         description=(
             "Inbound WhatsApp Cloud API webhook receiver. Verifies Meta's "
@@ -246,19 +246,54 @@ def create_app(
             return FileResponse(str(_site_dir / "index.html"))
 
     @app.get("/health")
-    async def health(_admin: str = Depends(require_admin)) -> dict[str, str]:
-        """Liveness + basic readiness check (SQLite reachable). Admin-only."""
+    async def health(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+        """Liveness + readiness check for Track A and Track B. Admin-only."""
+        # Track A: SQLite check
         try:
             import sqlite3
 
             conn = sqlite3.connect(str(settings.db_path))
             conn.execute("SELECT 1")
             conn.close()
-            db_ok = True
+            track_a_db = True
         except Exception:
-            db_ok = False
-        status = "ok" if db_ok else "degraded"
-        return {"status": status, "service": "track-a", "db": "ok" if db_ok else "unreachable"}
+            track_a_db = False
+
+        # Track B: HTTP health check
+        track_b_ok = False
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(f"{settings.track_b_url}/health")
+                track_b_ok = resp.status_code == 200
+        except Exception:
+            pass
+
+        # Redis: ping check (reads WPBOT_REDIS_URL env var)
+        redis_ok = False
+        redis_url = os.environ.get("WPBOT_REDIS_URL", "")
+        if redis_url:
+            try:
+                import redis.asyncio as aioredis
+
+                r = aioredis.from_url(redis_url, socket_connect_timeout=2.0)
+                await r.ping()
+                await r.aclose()
+                redis_ok = True
+            except Exception:
+                pass
+
+        overall = "ok" if track_a_db and track_b_ok else "degraded"
+        result: dict[str, Any] = {
+            "status": overall,
+            "service": "track-a",
+            "db": "ok" if track_a_db else "unreachable",
+            "track_b": "ok" if track_b_ok else "unreachable",
+        }
+        if redis_url:
+            result["redis"] = "ok" if redis_ok else "unreachable"
+        else:
+            result["redis"] = "not_configured"
+        return result
 
     @app.get("/metrics")
     async def metrics_endpoint(_admin: str = Depends(require_admin)) -> PlainTextResponse:

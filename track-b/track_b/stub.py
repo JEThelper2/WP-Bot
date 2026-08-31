@@ -28,7 +28,7 @@ def _stub_change_id() -> str:
 
 def create_stub_app() -> FastAPI:
     app = FastAPI(
-        title="WP-Bot Track B (WordPress site/state) — STUB",
+        title="Sitepaw Track B (WordPress site/state) — STUB",
         version="0.1.0",
         description=(
             "Stub Track B. POST /intent returns a canned success result so "

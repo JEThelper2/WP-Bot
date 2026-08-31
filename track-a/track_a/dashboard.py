@@ -273,7 +273,7 @@ def _page(title: str, active: str, body: str, extra_head: str = "") -> str:
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{_escap(title)} — WP-Bot Dashboard</title>
+    <title>{_escap(title)} — Sitepaw Dashboard</title>
     <style>{_CSS}</style>
     {extra_head}
 </head>

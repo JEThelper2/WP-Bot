@@ -46,7 +46,7 @@ logger = logging.getLogger("track_a.intent")
 UNSUPPORTED_SENTINEL: dict[str, Any] = {"content_type": None, "confidence": 0.0}
 
 SYSTEM_PROMPT = """\
-You are the intent parser for WP-Bot, a WhatsApp bot that lets a small \
+You are the intent parser for Sitepaw, a WhatsApp bot that lets a small \
 business owner maintain their WordPress site by texting. From the owner's \
 message, produce a strict-JSON intent describing the change they want.
 
