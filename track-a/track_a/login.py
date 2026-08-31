@@ -134,7 +134,7 @@ async def login_page(request: Request) -> HTMLResponse:
     # Already logged in? Redirect to dashboard.
     if check_auth(request):
         return RedirectResponse(url="/admin/dashboard", status_code=302)
-    return HTMLResponse(content=_LOGIN_PAGE.format(error_html=""))
+    return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", ""))
 
 
 @router.post("/admin/login")
@@ -149,7 +149,7 @@ async def login_submit(request: Request) -> HTMLResponse:
 
     if not expected_user or not expected_pass:
         error = '<div class="error">Admin credentials not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD.</div>'
-        return HTMLResponse(content=_LOGIN_PAGE.format(error_html=error))
+        return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", error))
 
     if username == expected_user and hmac.compare_digest(password, expected_pass):
         cookie_val = create_session_cookie(username)
@@ -164,7 +164,7 @@ async def login_submit(request: Request) -> HTMLResponse:
         return response
 
     error = '<div class="error">Invalid username or password.</div>'
-    return HTMLResponse(content=_LOGIN_PAGE.format(error_html=error))
+    return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", error))
 
 
 @router.get("/admin/logout")
