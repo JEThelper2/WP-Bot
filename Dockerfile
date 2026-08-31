@@ -14,12 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY shared-contract/ shared-contract/
+# Copy dependency manifests first (Docker layer caching)
+COPY shared-contract/pyproject.toml shared-contract/pyproject.toml
 COPY track-a/requirements.txt track-a/requirements.txt
 COPY track-b/requirements.txt track-b/requirements.txt
 
-RUN pip install --no-cache-dir -e ./shared-contract \
+# Install Python dependencies
+RUN pip install --no-cache-dir ./shared-contract \
     && pip install --no-cache-dir -r track-a/requirements.txt \
     && pip install --no-cache-dir -r track-b/requirements.txt
 

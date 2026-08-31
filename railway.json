@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "uvicorn track_a.main:app --host 0.0.0.0 --port $PORT & uvicorn track_b.main:app --host 0.0.0.0 --port 8200",
+    "startCommand": "uvicorn track_a.main:app --host 0.0.0.0 --port $PORT & (uvicorn track_b.main:app --host 0.0.0.0 --port 8200 || echo 'Track B exited with error') & wait",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 10,
     "restartPolicyType": "ON_FAILURE",
