@@ -31,6 +31,7 @@ import hmac as _hmac
 import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
@@ -224,6 +225,20 @@ def create_app(
     # caught by admin's /admin/{escalation_id} catch-all route.
     app.include_router(dashboard_router)
     app.include_router(admin_router)
+
+    # --- Static landing page (served from the site/ directory) -----------
+    _site_dir = Path(__file__).resolve().parent.parent.parent.parent / "site"
+    if _site_dir.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/site", StaticFiles(directory=str(_site_dir), html=True), name="site")
+        # Serve the root landing page at /
+
+        @app.get("/")
+        async def landing_page() -> Any:
+            from starlette.responses import FileResponse
+
+            return FileResponse(str(_site_dir / "index.html"))
 
     @app.get("/health")
     async def health() -> dict[str, str]:

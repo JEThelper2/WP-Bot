@@ -1,4 +1,4 @@
-# Multi-stage build for WP-Bot (Track A + Track B)
+# Multi-stage build for WP-Bot (Track A + Track B + Landing Page)
 # Deploy to Railway via: railway up
 
 FROM python:3.12-slim AS base
@@ -27,12 +27,13 @@ RUN pip install --no-cache-dir -e ./shared-contract \
 COPY shared-contract/ shared-contract/
 COPY track-a/ track-a/
 COPY track-b/ track-b/
+COPY site/ site/
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
 
 # Expose ports
-# Track A: 8000, Track B: 8200
+# Track A: 8000 (also serves static site at /), Track B: 8200 (internal)
 EXPOSE 8000 8200
 
 # Default command: run both tracks
