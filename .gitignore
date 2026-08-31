@@ -6,3 +6,26 @@ __pycache__/
 track-a/data/
 track-b/data/
 track-b/wp-sandbox/_output/
+
+# Environment & secrets — never commit these
+.env
+.env.*
+!.env.example
+*.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Secrets / credentials
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+secrets.json
+credentials.json
+service-account*.json
