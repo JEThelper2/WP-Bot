@@ -13,6 +13,7 @@ from track_a.store import count_messages, list_messages
 
 VERIFY_TOKEN = "test-verify-token"
 APP_SECRET = "test-app-secret"
+ADMIN_TOKEN = "test-admin-token"
 
 
 def sign_payload(secret: str, raw_body: bytes) -> str:
@@ -33,6 +34,7 @@ def app(tmp_path):
         verify_token=VERIFY_TOKEN,
         track_b_url="http://track-b:8200",
         db_path=tmp_path / "inbound.db",
+        admin_token=ADMIN_TOKEN,
     )
     return create_app(settings, processor=NoopProcessor())
 
@@ -347,5 +349,14 @@ def test_verification_is_off_when_no_secret_configured(client: TestClient, app) 
     assert count_messages(db_path(app)) == 1
 
 
-def test_health(client: TestClient) -> None:
-    assert client.get("/health").json()["status"] == "ok"
+def test_health_requires_auth(client: TestClient) -> None:
+    """Health endpoint must reject unauthenticated requests."""
+    resp = client.get("/health")
+    assert resp.status_code == 401
+
+
+def test_health(client: TestClient, app) -> None:
+    headers = {"Authorization": f"Bearer {app.state.admin_token}"}
+    resp = client.get("/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"

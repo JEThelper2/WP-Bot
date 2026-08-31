@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from shared_contract.logging import setup_logging
@@ -45,7 +45,7 @@ from .admin import router as admin_router
 from .ai_provider import get_provider
 from .config import DEFAULT_VERIFY_TOKEN, Settings
 from .dashboard import router as dashboard_router
-from .login import router as login_router
+from .login import require_admin, router as login_router
 from .intent import IntentParser
 from .media import WhatsAppMediaClient
 from .metrics import metrics
@@ -246,8 +246,8 @@ def create_app(
             return FileResponse(str(_site_dir / "index.html"))
 
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        """Liveness + basic readiness check (SQLite reachable)."""
+    async def health(_admin: str = Depends(require_admin)) -> dict[str, str]:
+        """Liveness + basic readiness check (SQLite reachable). Admin-only."""
         try:
             import sqlite3
 
@@ -261,8 +261,8 @@ def create_app(
         return {"status": status, "service": "track-a", "db": "ok" if db_ok else "unreachable"}
 
     @app.get("/metrics")
-    async def metrics_endpoint() -> PlainTextResponse:
-        """Prometheus-style metrics in text exposition format."""
+    async def metrics_endpoint(_admin: str = Depends(require_admin)) -> PlainTextResponse:
+        """Prometheus-style metrics in text exposition format. Admin-only."""
         return PlainTextResponse(metrics.render(), media_type="text/plain")
 
     # --- Telegram adapter endpoints (for testing without WhatsApp) ----------
@@ -301,13 +301,8 @@ def create_app(
         )
 
     @app.get("/telegram/poll")
-    async def telegram_poll() -> dict[str, Any]:
-        """Long-poll Telegram for updates (dev mode).
-
-        Call this periodically (e.g. from a script or cron) to process
-        incoming Telegram messages.  Each call fetches one batch of
-        pending updates and processes them through the pipeline.
-        """
+    async def telegram_poll(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+        """Long-poll Telegram for updates (dev mode). Admin-only."""
         if not settings.telegram_bot_token:
             raise HTTPException(status_code=503, detail="Telegram not configured (set TELEGRAM_BOT_TOKEN)")
 
@@ -330,8 +325,8 @@ def create_app(
         return {"status": "ok", "processed": processed}
 
     @app.post("/telegram/send")
-    async def telegram_send(chat_id: str, text: str) -> dict[str, str]:
-        """Manual send endpoint for testing (debug tool)."""
+    async def telegram_send(chat_id: str, text: str, _admin: str = Depends(require_admin)) -> dict[str, str]:
+        """Manual send endpoint for testing. Admin-only."""
         if not settings.telegram_bot_token:
             raise HTTPException(status_code=503, detail="Telegram not configured")
         sender = TelegramReplySender(bot_token=settings.telegram_bot_token, client=shared_client)
@@ -472,17 +467,16 @@ def create_app(
         }
 
     @app.get("/messages")
-    async def messages() -> dict[str, Any]:
-        """Dev/debug endpoint: recent logged messages (newest first)."""
+    async def messages(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+        """Recent logged messages (newest first). Admin-only."""
         return {
             "count": count_messages(settings.db_path),
             "messages": list_messages(settings.db_path),
         }
 
     @app.get("/escalations")
-    async def escalations() -> dict[str, Any]:
-        """Escalation queue (PRD §10): requests owners accepted to hand to a
-        human developer. No matching logic — a human reviews these."""
+    async def escalations(_admin: str = Depends(require_admin)) -> dict[str, Any]:
+        """Escalation queue (PRD §10). Admin-only."""
         return {
             "count": count_escalation_requests(settings.db_path),
             "escalations": list_escalation_requests(settings.db_path),

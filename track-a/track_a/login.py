@@ -85,6 +85,21 @@ def check_auth(request: Request) -> str | None:
     return None
 
 
+async def require_admin(request: Request) -> str:
+    """FastAPI dependency that rejects unauthenticated requests with 401.
+
+    Use it on any endpoint that should only be accessible to admins:
+
+        @app.get("/secret")
+        async def secret(admin: str = Depends(require_admin)):
+            ...
+    """
+    user = check_auth(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
+
+
 _LOGIN_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
