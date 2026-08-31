@@ -9,18 +9,77 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import time
+from collections import defaultdict
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+logger = logging.getLogger("track_a.login")
+
 router = APIRouter(tags=["login"])
 
 COOKIE_NAME = "wpbot_session"
 COOKIE_MAX_AGE = 86400 * 7  # 7 days
+
+# --- Rate limiting for login attempts ----------------------------------------
+# Tracks failed attempts per IP.  After _LOGIN_MAX_ATTEMPTS failures within
+# _LOGIN_WINDOW_SECONDS the IP is locked out for _LOGIN_LOCKOUT_SECONDS.
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW_SECONDS = 900  # 15 minutes
+_LOGIN_LOCKOUT_SECONDS = 900  # 15 minutes
+
+# {ip: [(timestamp, ...)] }
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+_lockouts: dict[str, float] = {}  # {ip: lockout_expiry}
+
+
+def _client_ip(request: Request) -> str:
+    """Extract the real client IP, respecting X-Forwarded-For from proxies."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _is_rate_limited(ip: str) -> bool:
+    """Return True if the IP is currently locked out."""
+    now = time.time()
+    # Check lockout
+    expiry = _lockouts.get(ip)
+    if expiry and now < expiry:
+        return True
+    # Clean expired lockout
+    if expiry and now >= expiry:
+        del _lockouts[ip]
+        _failed_attempts.pop(ip, None)
+    return False
+
+
+def _record_failure(ip: str) -> None:
+    """Record a failed login attempt. Triggers lockout if threshold exceeded."""
+    now = time.time()
+    # Prune old attempts outside the window
+    _failed_attempts[ip] = [
+        t for t in _failed_attempts[ip] if now - t < _LOGIN_WINDOW_SECONDS
+    ]
+    _failed_attempts[ip].append(now)
+    if len(_failed_attempts[ip]) >= _LOGIN_MAX_ATTEMPTS:
+        _lockouts[ip] = now + _LOGIN_LOCKOUT_SECONDS
+        logger.warning(
+            "login rate-limited: IP %s locked out for %ds after %d failures",
+            ip, _LOGIN_LOCKOUT_SECONDS, len(_failed_attempts[ip]),
+        )
+
+
+def _clear_failures(ip: str) -> None:
+    """Clear failed attempts on successful login."""
+    _failed_attempts.pop(ip, None)
+    _lockouts.pop(ip, None)
 
 
 def _sign(value: str, secret: str) -> str:
@@ -105,8 +164,8 @@ _LOGIN_PAGE = """<!DOCTYPE html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WP-Bot Admin Login</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+  <title>Sitepaw Admin Login</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -120,11 +179,12 @@ _LOGIN_PAGE = """<!DOCTYPE html>
     .btn { width: 100%; padding: 12px; background: #0D9488; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn:hover { background: #0a7a70; }
     .error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 0.85em; margin-bottom: 16px; }
+    .rate-limit { background: #fefce8; border: 1px solid #fde68a; color: #92400e; padding: 10px 14px; border-radius: 8px; font-size: 0.85em; margin-bottom: 16px; }
   </style>
 </head>
 <body>
   <div class="login-card">
-    <h1>🤖 WP-Bot Admin</h1>
+    <h1>🐾 Sitepaw Admin</h1>
     <p>Sign in to access the dashboard.</p>
     {error_html}
     <form method="POST" action="/admin/login">
@@ -155,6 +215,14 @@ async def login_page(request: Request) -> HTMLResponse:
 @router.post("/admin/login")
 async def login_submit(request: Request) -> HTMLResponse:
     """Process login form submission."""
+    ip = _client_ip(request)
+
+    # Check rate limit before processing
+    if _is_rate_limited(ip):
+        logger.warning("login blocked: IP %s is rate-limited", ip)
+        error = '<div class="rate-limit">Too many failed attempts. Please try again later.</div>'
+        return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", error), status_code=429)
+
     form = await request.form()
     username = str(form.get("username", "")).strip()
     password = str(form.get("password", ""))
@@ -167,6 +235,7 @@ async def login_submit(request: Request) -> HTMLResponse:
         return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", error))
 
     if username == expected_user and hmac.compare_digest(password, expected_pass):
+        _clear_failures(ip)
         cookie_val = create_session_cookie(username)
         response = RedirectResponse(url="/admin/dashboard", status_code=302)
         response.set_cookie(
@@ -178,7 +247,12 @@ async def login_submit(request: Request) -> HTMLResponse:
         )
         return response
 
-    error = '<div class="error">Invalid username or password.</div>'
+    _record_failure(ip)
+    remaining = _LOGIN_MAX_ATTEMPTS - len(_failed_attempts.get(ip, []))
+    if remaining <= 0:
+        error = '<div class="rate-limit">Too many failed attempts. Locked out for 15 minutes.</div>'
+    else:
+        error = f'<div class="error">Invalid username or password. ({remaining} attempts remaining)</div>'
     return HTMLResponse(content=_LOGIN_PAGE.replace("{error_html}", error))
 
 
