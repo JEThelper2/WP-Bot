@@ -563,5 +563,8 @@ class _AppProxy:
     def __getattr__(self, name: str) -> Any:
         return getattr(_get_app(), name)
 
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        return await _get_app()(scope, receive, send)
+
 
 app: FastAPI = _AppProxy()  # type: ignore[assignment]
