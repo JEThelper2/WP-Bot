@@ -160,7 +160,7 @@ def create_app(
         await shared_client.aclose()
 
     app = FastAPI(
-        title="WP-Bot Track A (WhatsApp conversation service)",
+        title="Sitepaw Track A (WhatsApp conversation service)",
         version="0.1.0",
         description=(
             "Inbound WhatsApp Cloud API webhook receiver. Verifies Meta's "

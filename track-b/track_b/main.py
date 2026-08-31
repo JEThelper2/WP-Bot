@@ -172,7 +172,7 @@ def create_app(
     setup_logging()
     settings = settings or Settings.from_env()
     app = FastAPI(
-        title="WP-Bot Track B (WordPress site/state)",
+        title="Sitepaw Track B (WordPress site/state)",
         version="0.1.0",
         description=(
             "Real Track B API: intent staging/resolution, WordPress writes "
