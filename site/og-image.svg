@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0B1220"/>
+      <stop offset="0%" style="stop-color:#101828"/>
       <stop offset="100%" style="stop-color:#1a2332"/>
     </linearGradient>
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#0D9488"/>
+      <stop offset="0%" style="stop-color:#14B8A6"/>
       <stop offset="100%" style="stop-color:#2DD4BF"/>
     </linearGradient>
   </defs>
   <!-- Background -->
   <rect width="1200" height="630" fill="url(#bg)"/>
   <!-- Decorative circles -->
-  <circle cx="1050" cy="100" r="200" fill="#0D9488" opacity="0.08"/>
+  <circle cx="1050" cy="100" r="200" fill="#14B8A6" opacity="0.08"/>
   <circle cx="150" cy="530" r="150" fill="#2DD4BF" opacity="0.06"/>
   <!-- Paw icon -->
   <g transform="translate(530, 140)" fill="#2DD4BF">
@@ -35,15 +35,15 @@
   <rect x="480" y="420" width="240" height="3" rx="1.5" fill="url(#accent)"/>
   <!-- Feature pills -->
   <g transform="translate(260, 460)">
-    <rect x="0" y="0" width="180" height="40" rx="20" fill="#0D9488" opacity="0.15"/>
+    <rect x="0" y="0" width="180" height="40" rx="20" fill="#14B8A6" opacity="0.15"/>
     <text x="90" y="26" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="15" fill="#2DD4BF" font-weight="500">WhatsApp</text>
   </g>
   <g transform="translate(470, 460)">
-    <rect x="0" y="0" width="180" height="40" rx="20" fill="#0D9488" opacity="0.15"/>
+    <rect x="0" y="0" width="180" height="40" rx="20" fill="#14B8A6" opacity="0.15"/>
     <text x="90" y="26" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="15" fill="#2DD4BF" font-weight="500">No Code Needed</text>
   </g>
   <g transform="translate(680, 460)">
-    <rect x="0" y="0" width="180" height="40" rx="20" fill="#0D9488" opacity="0.15"/>
+    <rect x="0" y="0" width="180" height="40" rx="20" fill="#14B8A6" opacity="0.15"/>
     <text x="90" y="26" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="15" fill="#2DD4BF" font-weight="500">Instant Updates</text>
   </g>
 </svg>
